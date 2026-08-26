@@ -490,3 +490,5 @@ dist/
 # Local SQLite Database file
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
