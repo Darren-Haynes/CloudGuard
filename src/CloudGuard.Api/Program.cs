@@ -42,4 +42,6 @@ app.UseAuthorization();
 // Map your controller routes automatically (bridges traffic straight to AssetController)
 app.MapControllers();
 
+DbSeeder.SeedData(app);
+
 app.Run();
