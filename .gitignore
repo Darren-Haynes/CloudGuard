@@ -486,3 +486,7 @@ node_modules/
 dist/
 **/TestResults/
 .env.local
+
+# Local SQLite Database file
+*.db
+*.db-journal
