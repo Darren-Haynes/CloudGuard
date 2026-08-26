@@ -1,0 +1,6 @@
+@CloudGuard.Api_HostAddress = http://localhost:5003
+
+GET {{CloudGuard.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

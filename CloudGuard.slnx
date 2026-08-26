@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CloudGuard.Api/CloudGuard.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CloudGuard.Api.Tests/CloudGuard.Api.Tests.csproj" />
+  </Folder>
+</Solution>
