@@ -1,35 +1,46 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ServerAsset } from './types';
 import { DashboardTable } from './components/DashboardTable';
-
-const MOCK_ASSETS: ServerAsset[] = [
-  {
-    id: '1a9f3c2e-4b5a-4d6e-8f7a-9b0c1d2e3f4a',
-    serverName: 'gsy-fin-prod-01',
-    operatingSystem: 'Windows Server 2022',
-    missingPatches: 0,
-    securityStatus: 'Compliant',
-    lastAuditedAt: '2026-08-25T08:30:00Z',
-  },
-  {
-    id: '2b0a4d3f-5c6b-5e7f-9a8b-0c1d2e3f4a5b',
-    serverName: 'gsy-hr-vm-02',
-    operatingSystem: 'Ubuntu 22.04 LTS',
-    missingPatches: 4,
-    securityStatus: 'Vulnerable',
-    lastAuditedAt: '2026-08-24T14:15:00Z',
-  },
-  {
-    id: '3c1b5e4a-6d7c-6f8a-0b9c-1d2e3f4a5b6c',
-    serverName: 'gsy-core-dc-01',
-    operatingSystem: 'Windows Server 2019',
-    missingPatches: 12,
-    securityStatus: 'Critical',
-    lastAuditedAt: '2026-08-23T11:45:00Z',
-  },
-];
+import { fetchServerAssets } from './services/api';
 
 export const App: React.FC = () => {
+  const [assets, setAssets] = useState<ServerAsset[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAssets() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await fetchServerAssets();
+        if (isMounted) {
+          setAssets(data);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to connect to security telemetry service.'
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadAssets();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div
       style={{
@@ -56,7 +67,26 @@ export const App: React.FC = () => {
       </header>
 
       <main>
-        <DashboardTable assets={MOCK_ASSETS} />
+        {isLoading ? (
+          <p style={{ color: '#4b5563', fontSize: '0.95rem' }}>
+            Querying telemetry data...
+          </p>
+        ) : error !== null ? (
+          <div
+            style={{
+              padding: '1rem 1.25rem',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: '0.375rem',
+              color: '#991b1b',
+              fontSize: '0.95rem',
+            }}
+          >
+            <strong>Error loading telemetry:</strong> {error}
+          </div>
+        ) : (
+          <DashboardTable assets={assets} />
+        )}
       </main>
     </div>
   );
