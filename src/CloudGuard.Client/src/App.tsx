@@ -54,8 +54,7 @@ export const App: React.FC = () => {
         <h1
           style={{
             fontSize: '1.75rem',
-            fontWeight: 700,
-            color: '#111827',
+            color: '#f9fafb',           fontWeight: 700,
             margin: '0 0 0.5rem 0',
           }}
         >
