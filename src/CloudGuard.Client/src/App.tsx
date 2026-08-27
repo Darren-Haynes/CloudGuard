@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { ServerAsset } from './types';
 import { DashboardTable } from './components/DashboardTable';
 import { FilterBar } from './components/FilterBar';
+import { MetricCards } from './components/MetricCards';
 import { fetchServerAssets } from './services/api';
 
 export const App: React.FC = () => {
@@ -99,6 +100,7 @@ export const App: React.FC = () => {
           </div>
         ) : (
           <>
+            <MetricCards assets={assets} />
             <FilterBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
