@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import type { ServerAsset } from './types';
 import { DashboardTable } from './components/DashboardTable';
+import { FilterBar } from './components/FilterBar';
 import { fetchServerAssets } from './services/api';
 
 export const App: React.FC = () => {
   const [assets, setAssets] = useState<ServerAsset[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
   useEffect(() => {
     let isMounted = true;
@@ -41,6 +45,15 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  const filteredAssets = assets.filter((asset) => {
+    const matchesSearch = asset.serverName
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      statusFilter === '' || asset.securityStatus === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div
       style={{
@@ -54,7 +67,8 @@ export const App: React.FC = () => {
         <h1
           style={{
             fontSize: '1.75rem',
-            color: '#f9fafb',           fontWeight: 700,
+            fontWeight: 700,
+            color: '#111827',
             margin: '0 0 0.5rem 0',
           }}
         >
@@ -84,7 +98,15 @@ export const App: React.FC = () => {
             <strong>Error loading telemetry:</strong> {error}
           </div>
         ) : (
-          <DashboardTable assets={assets} />
+          <>
+            <FilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              statusFilter={statusFilter}
+              onStatusChange={setStatusFilter}
+            />
+            <DashboardTable assets={filteredAssets} />
+          </>
         )}
       </main>
     </div>
