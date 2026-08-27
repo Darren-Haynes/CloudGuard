@@ -1,4 +1,5 @@
 using CloudGuard.Api.Data;
+using CloudGuard.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,10 @@ builder.Services.AddOpenApi();
 // Inject our centralized Entity Framework SQLite infrastructure mapping layer
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Register our asynchronous vulnerability simulator engine to run continuously
+builder.Services.AddHostedService<CloudGuard.Api.Services.VulnerabilityWorker>();
+// builder.Services.AddHostedService<VulnerabilityWorker>();
 
 // Establish secure Cross-Origin Resource Sharing rules for the local React interface
 builder.Services.AddCors(options =>
