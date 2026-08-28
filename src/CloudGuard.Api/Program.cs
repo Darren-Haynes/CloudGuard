@@ -29,6 +29,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddScoped<CloudGuard.Api.Services.IAssetService, CloudGuard.Api.Services.AssetService>();
 var app = builder.Build();
 
 // Configure the HTTP request delivery pipeline
