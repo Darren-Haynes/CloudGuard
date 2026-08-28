@@ -1,9 +1,8 @@
 using CloudGuard.Api.Controllers;
-using CloudGuard.Api.Data;
 using CloudGuard.Api.Models;
+using CloudGuard.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using Xunit;
 
 namespace CloudGuard.Api.Tests;
@@ -13,55 +12,43 @@ public class AssetControllerTests
     [Fact]
     public async Task GetAssets_ReturnsOkResult_WithListOfAssets()
     {
-        // 1. Arrange: Create a pristine, isolated, in-memory SQLite connection
-        using var connection = new SqliteConnection("DataSource=:memory:");
-        await connection.OpenAsync();
+        // 1. Arrange: Formulate a clean mock contract using NSubstitute
+        var assetServiceMock = Substitute.For<IAssetService>();
 
-        // 2. Build the DbContext using the active memory stream connection
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite(connection)
-            .Options;
-
-        // Ensure the table schema is completely generated in memory
-        using (var context = new AppDbContext(options))
+        // Define clean, strictly mapped test rows mirroring our real models
+        var sampleAssets = new List<ServerAsset>
         {
-            await context.Database.EnsureCreatedAsync();
+            new()
+            {
+                Id = Guid.NewGuid(),
+                ServerName = "test-server-01",
+                OperatingSystem = "Ubuntu",
+                MissingPatches = 2,
+                SecurityStatus = "Vulnerable",
+                LastAuditedAt = DateTime.UtcNow
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                ServerName = "test-server-02",
+                OperatingSystem = "Windows",
+                MissingPatches = 0,
+                SecurityStatus = "Compliant",
+                LastAuditedAt = DateTime.UtcNow
+            }
+        };
 
-            // Seed clean, strictly mapped test rows mirroring our real models
-            context.ServerAssets.AddRange(
-                new ServerAsset
-                {
-                    Id = Guid.NewGuid(),
-                    ServerName = "test-server-01",
-                    OperatingSystem = "Ubuntu",
-                    MissingPatches = 2,
-                    SecurityStatus = "Vulnerable",
-                    LastAuditedAt = DateTime.UtcNow
-                },
-                new ServerAsset
-                {
-                    Id = Guid.NewGuid(),
-                    ServerName = "test-server-02",
-                    OperatingSystem = "Windows",
-                    MissingPatches = 0,
-                    SecurityStatus = "Compliant",
-                    LastAuditedAt = DateTime.UtcNow
-                }
-            );
-            await context.SaveChangesAsync();
-        }
+        // Instruct the mock to return this sample collection when invoked asynchronously
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(sampleAssets));
 
-        // 3. Act: Instantiate the controller with our test context and invoke the endpoint
-        using (var context = new AppDbContext(options))
-        {
-            var controller = new AssetController(context);
-            var result = await controller.GetAssets();
+        // 2. Act: Inject the mock contract straight into the controller constructor
+        var controller = new AssetController(assetServiceMock);
+        var result = await controller.GetAssets();
 
-            // 4. Assert: Verify the server HTTP result wrapper holds our records
-            var okResult = Assert.IsType<OkObjectResult>(result.Result);
-            var assets = Assert.IsAssignableFrom<IEnumerable<ServerAsset>>(okResult.Value);
+        // 3. Assert: Verify the server HTTP result wrapper holds our mock records
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var assets = Assert.IsAssignableFrom<IEnumerable<ServerAsset>>(okResult.Value);
 
-            Assert.Equal(2, assets.Count());
-        }
+        Assert.Equal(2, assets.Count());
     }
 }

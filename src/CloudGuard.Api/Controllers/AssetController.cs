@@ -1,18 +1,17 @@
-using CloudGuard.Api.Data;
 using CloudGuard.Api.Models;
+using CloudGuard.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace CloudGuard.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AssetController(AppDbContext context) : ControllerBase
+public class AssetController(IAssetService assetService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ServerAsset>>> GetAssets()
     {
-        var assets = await context.ServerAssets.ToListAsync();
+        var assets = await assetService.GetAllAssetsAsync();
         return Ok(assets);
     }
 }
