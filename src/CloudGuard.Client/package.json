@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:all": "concurrently --names \"TS,NET\" --prefix-colors \"cyan,green\" \"npx tsc --noEmit\" \"dotnet test ../../\""
+    "test:all": "concurrently --names \"TS,NET\" --prefix-colors \"cyan,green\" \"npx tsc --noEmit\" \"dotnet test ../../ /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura\""
   },
   "dependencies": {
     "react": "^19.2.8",
