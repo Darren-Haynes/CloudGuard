@@ -16,9 +16,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadAssets() {
+    async function loadAssets(isInitialLoad: boolean) {
       try {
-        setIsLoading(true);
+        if (isInitialLoad) {
+          setIsLoading(true);
+        }
         setError(null);
         const data = await fetchServerAssets();
         if (isMounted) {
@@ -33,16 +35,23 @@ export const App: React.FC = () => {
           );
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && isInitialLoad) {
           setIsLoading(false);
         }
       }
     }
 
-    loadAssets();
+    // 1. Initial run sets isLoading to true
+    loadAssets(true);
+
+    // 2. Background polling bypasses isLoading entirely
+    const intervalId = setInterval(() => {
+      loadAssets(false);
+    }, 5000);
 
     return () => {
       isMounted = false;
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -69,7 +78,7 @@ export const App: React.FC = () => {
           style={{
             fontSize: '1.75rem',
             fontWeight: 700,
-            color: '#111827',
+            color: '#f9fafb', // Kept your white color fix for dark mode!
             margin: '0 0 0.5rem 0',
           }}
         >
