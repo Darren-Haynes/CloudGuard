@@ -3,6 +3,8 @@ import React from 'react';
 export interface FilterBarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  osQuery: string;
+  onOsQueryChange: (value: string) => void;
   statusFilter: string;
   onStatusChange: (value: string) => void;
 }
@@ -20,6 +22,8 @@ const inputStyle: React.CSSProperties = {
 export const FilterBar: React.FC<FilterBarProps> = ({
   searchQuery,
   onSearchChange,
+  osQuery,
+  onOsQueryChange,
   statusFilter,
   onStatusChange,
 }) => {
@@ -30,6 +34,16 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         placeholder="Search servers by name..."
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
+        style={{
+          ...inputStyle,
+          flex: 1,
+        }}
+      />
+      <input
+        type="text"
+        placeholder="Search servers by OS..."
+        value={osQuery}
+        onChange={(e) => onOsQueryChange(e.target.value)}
         style={{
           ...inputStyle,
           flex: 1,
