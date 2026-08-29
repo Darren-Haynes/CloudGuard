@@ -11,4 +11,11 @@ public class AssetService(AppDbContext context) : IAssetService
         var assets = await context.ServerAssets.ToListAsync();
         return assets;
     }
+
+    public async Task UpdateAssetAsync(ServerAsset asset)
+    {
+        context.ServerAssets.Attach(asset);
+        context.Entry(asset).State = EntityState.Modified;
+        await context.SaveChangesAsync();
+    }
 }
