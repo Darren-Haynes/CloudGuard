@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { ServerAsset } from '../types';
 
 interface DashboardTableProps {
@@ -37,6 +37,45 @@ const getBadgeStyles = (status: ServerAsset['securityStatus']): {
 };
 
 export const DashboardTable: React.FC<DashboardTableProps> = ({ assets }) => {
+  const [sortField, setSortField] = useState<string>('serverName');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedAssets = [...assets].sort((a, b) => {
+    const valA = a[sortField as keyof ServerAsset];
+    const valB = b[sortField as keyof ServerAsset];
+
+    let result = 0;
+    if (typeof valA === 'number' && typeof valB === 'number') {
+      result = sortDirection === 'asc' ? valA - valB : valB - valA;
+    } else {
+      const strA = String(valA ?? '');
+      const strB = String(valB ?? '');
+      result = sortDirection === 'asc'
+        ? strA.localeCompare(strB)
+        : strB.localeCompare(strA);
+    }
+
+    if (result !== 0) {
+      return result;
+    }
+
+    return a.serverName.localeCompare(b.serverName);
+  });
+
+  const renderSortIndicator = (field: string) => {
+    if (sortField !== field) return null;
+    return sortDirection === 'asc' ? ' ▲' : ' ▼';
+  };
+
   return (
     <div style={{ width: '100%', overflowX: 'auto', margin: '1rem 0' }}>
       <table
@@ -50,22 +89,37 @@ export const DashboardTable: React.FC<DashboardTableProps> = ({ assets }) => {
       >
         <thead>
           <tr style={{ borderBottom: '2px solid #e0e0e0' }}>
-            <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Server Name</th>
-            <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>OS</th>
-            <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Missing Patches</th>
+            <th
+              onClick={() => handleSort('serverName')}
+              style={{ cursor: 'pointer', userSelect: 'none', padding: '12px 16px', fontWeight: 600, color: '#555' }}
+            >
+              Server Name{renderSortIndicator('serverName')}
+            </th>
+            <th
+              onClick={() => handleSort('operatingSystem')}
+              style={{ cursor: 'pointer', userSelect: 'none', padding: '12px 16px', fontWeight: 600, color: '#555' }}
+            >
+              OS{renderSortIndicator('operatingSystem')}
+            </th>
+            <th
+              onClick={() => handleSort('missingPatches')}
+              style={{ cursor: 'pointer', userSelect: 'none', padding: '12px 16px', fontWeight: 600, color: '#555' }}
+            >
+              Missing Patches{renderSortIndicator('missingPatches')}
+            </th>
             <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Security Status</th>
             <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Last Audited</th>
           </tr>
         </thead>
         <tbody>
-          {assets.length === 0 ? (
+          {sortedAssets.length === 0 ? (
             <tr>
               <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#888' }}>
                 No server assets found.
               </td>
             </tr>
           ) : (
-            assets.map((asset, index) => {
+            sortedAssets.map((asset, index) => {
               const badge = getBadgeStyles(asset.securityStatus);
               const isEven = index % 2 === 0;
 
