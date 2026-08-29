@@ -15,4 +15,12 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
   </ItemGroup>
 
+  <Target Name="DeleteSqliteDb" BeforeTargets="Clean;BeforeBuild" Condition="'$(Configuration)' == 'Debug'">
+    <ItemGroup>
+      <FilesToDelete Include="cloudguard.db;cloudguard.db-shm;cloudguard.db-wal" />
+    </ItemGroup>
+    <Delete Files="@(FilesToDelete)" ContinueOnError="true" />
+    <Message Importance="high" Text="🧹 CloudGuard MSBuild: Cleaned local SQLite database files successfully." Condition="Exists('cloudguard.db')" />
+  </Target>
+
 </Project>
