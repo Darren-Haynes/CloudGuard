@@ -11,6 +11,7 @@ export const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [osQuery, setOsQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
   useEffect(() => {
@@ -59,9 +60,12 @@ export const App: React.FC = () => {
     const matchesSearch = asset.serverName
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
+    const matchesOs = asset.operatingSystem
+      .toLowerCase()
+      .includes(osQuery.toLowerCase());
     const matchesStatus =
       statusFilter === '' || asset.securityStatus === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesOs && matchesStatus;
   });
 
   return (
@@ -113,6 +117,8 @@ export const App: React.FC = () => {
             <FilterBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              osQuery={osQuery}
+              onOsQueryChange={setOsQuery}
               statusFilter={statusFilter}
               onStatusChange={setStatusFilter}
             />
