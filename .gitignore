@@ -492,3 +492,6 @@ dist/
 *.db-journal
 *.db-shm
 *.db-wal
+
+# Frontend environment artifact noise
+--version
