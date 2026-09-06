@@ -15,7 +15,7 @@ namespace CloudGuard.Api.Tests;
 public class DbSeederTests
 {
     [Fact]
-    public async Task SeedData_PopulatesDatabaseWithTenServers_WhenDatabaseIsEmpty()
+    public async Task SeedData_PopulatesDatabaseWithThreeHundredServers_WhenDatabaseIsEmpty()
     {
         // Arrange
         using var connection = new SqliteConnection("DataSource=:memory:");
@@ -44,11 +44,11 @@ public class DbSeederTests
         using (var context = new AppDbContext(options))
         {
             var serverCount = await context.ServerAssets.CountAsync();
-            Assert.Equal(10, serverCount);
+            Assert.Equal(300, serverCount); // Verifies the scaled 300 fleet size
 
-            Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName == "gsy-fin-prod-01"));
-            Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName == "jsy-legal-prod-01"));
-            Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName == "gsy-backup-nas-01"));
+            // Verify that regional infrastructure naming patterns are being generated
+            Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName.StartsWith("gsy-")));
+            Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName.StartsWith("jsy-")));
         }
     }
 
@@ -70,7 +70,6 @@ public class DbSeederTests
         var app = Substitute.For<IApplicationBuilder>();
         app.ApplicationServices.Returns(serviceProvider);
 
-        // Pre-seed the database with 1 custom server so it's NOT empty
         using (var context = new AppDbContext(options))
         {
             await context.Database.EnsureCreatedAsync();
@@ -93,11 +92,9 @@ public class DbSeederTests
         using (var context = new AppDbContext(options))
         {
             var serverCount = await context.ServerAssets.CountAsync();
-            // It should STILL be 1 because the seeder should have skipped execution!
             Assert.Equal(1, serverCount);
             Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName == "pre-existing-server"));
-            // Verify one of the default seed items was NOT added
-            Assert.False(await context.ServerAssets.AnyAsync(s => s.ServerName == "gsy-fin-prod-01"));
+            Assert.False(await context.ServerAssets.AnyAsync(s => s.ServerName.StartsWith("gsy-")));
         }
     }
 }
