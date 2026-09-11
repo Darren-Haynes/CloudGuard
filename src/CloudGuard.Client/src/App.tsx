@@ -96,7 +96,7 @@ export const App: React.FC = () => {
         <div
           style={{
             maxWidth: '1200px',
-            width: '100%',
+            width: '92%',
             margin: '0 auto',
             padding: '2rem 1.5rem',
             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',

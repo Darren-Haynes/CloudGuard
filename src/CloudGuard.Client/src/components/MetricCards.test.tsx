@@ -11,15 +11,19 @@ describe('MetricCards Component', () => {
       operatingSystem: 'Ubuntu',
       missingPatches: 0,
       securityStatus: 'Compliant',
-      lastAuditedAt: new Date().toISOString()
+      lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 01'
     },
     {
       id: '2',
       serverName: 'gsy-test-02',
       operatingSystem: 'Windows',
       missingPatches: 12,
-      securityStatus: 'Critical',
-      lastAuditedAt: new Date().toISOString()
+      securityStatus: 'Critical', // This should register as 1 Critical Alert
+      lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 01'
     },
     {
       id: '3',
@@ -27,7 +31,9 @@ describe('MetricCards Component', () => {
       operatingSystem: 'Linux',
       missingPatches: 5,
       securityStatus: 'Vulnerable',
-      lastAuditedAt: new Date().toISOString()
+      lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 01'
     }
   ];
 
@@ -38,7 +44,7 @@ describe('MetricCards Component', () => {
     // Assert: Total count should equal full array length (3)
     expect(screen.getByText('3')).toBeInTheDocument();
 
-    // Assert: Only 1 server strictly matches the 'Critical' parameter filter string
+    // Assert: Only 1 server strictly matches the 'Critical' parameter
     expect(screen.getByText('1')).toBeInTheDocument();
 
     // Assert: Accumulate total patch drift (0 + 12 + 5 = 17)
