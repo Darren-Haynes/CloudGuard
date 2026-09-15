@@ -18,4 +18,21 @@ public class AssetService(AppDbContext context) : IAssetService
         context.Entry(asset).State = EntityState.Modified;
         await context.SaveChangesAsync();
     }
+
+    public async Task<IEnumerable<ServerAsset>> GetScopedAssetsAsync(string? building, string? room)
+    {
+        IQueryable<ServerAsset> query = context.ServerAssets;
+
+        if (!string.IsNullOrWhiteSpace(building))
+        {
+            query = query.Where(s => s.BuildingName == building);
+        }
+
+        if (!string.IsNullOrWhiteSpace(room))
+        {
+            query = query.Where(s => s.ServerRoom == room);
+        }
+
+        return await query.ToListAsync();
+    }
 }

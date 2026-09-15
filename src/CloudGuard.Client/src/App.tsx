@@ -102,14 +102,71 @@ export const App: React.FC = () => {
             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           }}
         >
-          <header style={{ marginBottom: '2rem' }}>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#f9fafb', margin: '0 0 0.5rem 0' }}>
-              CloudGuard Infrastructure Dashboard
-            </h1>
-            <p style={{ color: '#9ca3af', margin: 0, fontSize: '0.95rem' }}>
-              Active Environment: {selectedBuilding === null ? 'All Buildings' : selectedBuilding}
-              {selectedRoom !== null && ` ➔ ${selectedRoom}`}
-            </p>
+
+          <header
+            style={{
+              marginBottom: '2rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center', // Centers alignment lines completely
+              width: '100%',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{ textAlign: 'left' }}>
+              {/* 💡 Overrode global index.css 56px size to prevent layout breaking */}
+              <h1
+                style={{
+                  fontSize: '1.75rem', // Locks text to a clean dashboard scale
+                  fontWeight: 700,
+                  color: '#f9fafb',
+                  margin: '0 0 0.5rem 0', // Wipes out index.css 32px margins
+                  letterSpacing: 'normal',
+                  lineHeight: '1.2'
+                }}
+              >
+                CloudGuard Infrastructure Dashboard
+              </h1>
+              <p style={{ color: '#9ca3af', margin: 0, fontSize: '0.95rem' }}>
+                Active Environment: {selectedBuilding === null ? 'All Buildings' : selectedBuilding}
+                {selectedRoom !== null && ` ➔ ${selectedRoom}`}
+              </p>
+            </div>
+
+            {/* 📥 DYNAMIC CONTEXT-AWARE CSV EXPORT BUTTON */}
+            <button
+              onClick={() => {
+                const baseUrl = 'http://localhost:5003/api/asset/export';
+                const params = new URLSearchParams();
+                if (selectedBuilding) params.append('building', selectedBuilding);
+                if (selectedRoom) params.append('room', selectedRoom);
+
+                // Construct and trigger the file download URL signature natively over the wire
+                const downloadUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+                window.location.href = downloadUrl;
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.625rem 1rem',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background-color 150ms ease',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                flexShrink: 0, // 🔥 Guarantees the button can NEVER shrink or be pushed off-screen
+                marginLeft: '1.5rem'
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#10b981')}
+            >
+              📥 Download Audit Report
+            </button>
           </header>
 
           <main>
