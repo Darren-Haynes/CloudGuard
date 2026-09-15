@@ -11,7 +11,9 @@ describe('DashboardTable Component', () => {
       operatingSystem: 'Ubuntu 22.04 LTS',
       missingPatches: 4,
       securityStatus: 'Vulnerable',
-      lastAuditedAt: new Date().toISOString()
+      lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 02'
     },
     {
       id: '2',
@@ -19,15 +21,19 @@ describe('DashboardTable Component', () => {
       operatingSystem: 'Windows Server 2022',
       missingPatches: 0,
       securityStatus: 'Compliant',
-      lastAuditedAt: new Date().toISOString()
+      lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 01'
     },
     {
       id: '3',
       serverName: 'gsy-backup-nas-01',
-      operatingSystem: 'Windows Server 2022', // Identical OS to create a tie-breaker condition!
-      missingPatches: 12, // High patch count to verify numerical order
+      operatingSystem: 'Windows Server 2022',
+      missingPatches: 12,
       securityStatus: 'Vulnerable',
-      lastAuditedAt: new Date().toISOString()
+      lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 01'
     }
   ];
 

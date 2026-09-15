@@ -18,6 +18,8 @@ describe('App Root Component Integration', () => {
       missingPatches: 0,
       securityStatus: 'Compliant',
       lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 01',
     },
     {
       id: '2',
@@ -26,6 +28,8 @@ describe('App Root Component Integration', () => {
       missingPatches: 4,
       securityStatus: 'Vulnerable',
       lastAuditedAt: new Date().toISOString(),
+      buildingName: 'Building 1',
+      serverRoom: 'Room 02',
     }
   ];
 

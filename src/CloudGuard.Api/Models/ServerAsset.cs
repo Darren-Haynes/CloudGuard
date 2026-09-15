@@ -10,4 +10,6 @@ public class ServerAsset
     public int MissingPatches { get; set; }
     public string SecurityStatus { get; set; } = string.Empty;
     public DateTime LastAuditedAt { get; set; }
+    public string BuildingName { get; set; } = string.Empty;
+    public string ServerRoom { get; set; } = string.Empty;
 }

@@ -5,4 +5,6 @@ export interface ServerAsset {
   missingPatches: number;
   securityStatus: 'Compliant' | 'Vulnerable' | 'Critical';
   lastAuditedAt: string;
+  buildingName: string;
+  serverRoom: string;
 }
