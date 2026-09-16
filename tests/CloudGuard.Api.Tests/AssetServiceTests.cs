@@ -60,4 +60,53 @@ public class AssetServiceTests
         Assert.Contains(assetList, asset => asset.Id == firstAsset.Id);
         Assert.Contains(assetList, asset => asset.Id == secondAsset.Id);
     }
+
+    [Fact]
+    public async Task GetScopedAssetsAsync_FiltersByBuildingAndRoom_Accurately()
+    {
+        // Arrange
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        using var context = new AppDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        context.ServerAssets.AddRange(
+            new ServerAsset
+            {
+                Id = Guid.NewGuid(),
+                BuildingName = "Building 1",
+                ServerRoom = "Room 01",
+                ServerName = "b1-r1"
+            },
+            new ServerAsset
+            {
+                Id = Guid.NewGuid(),
+                BuildingName = "Building 1",
+                ServerRoom = "Room 02",
+                ServerName = "b1-r2"
+            },
+            new ServerAsset
+            {
+                Id = Guid.NewGuid(),
+                BuildingName = "Building 2",
+                ServerRoom = "Room 01",
+                ServerName = "b2-r1"
+            });
+        await context.SaveChangesAsync();
+
+        var service = new AssetService(context);
+
+        // Act
+        var assets = await service.GetScopedAssetsAsync("Building 1", "Room 01");
+
+        // Assert
+        var assetList = assets.ToList();
+        Assert.Single(assetList);
+        Assert.Equal("b1-r1", assetList[0].ServerName);
+    }
 }
