@@ -29,7 +29,16 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddScoped<CloudGuard.Api.Services.IAssetService, CloudGuard.Api.Services.AssetService>();
+// Register the core database access layer implementation
+builder.Services.AddScoped<AssetService>();
+
+// Register the cross-cutting resiliency decorator proxy to intercept all interface scopes
+builder.Services.AddScoped<IAssetService>(provider =>
+    new ResilientAssetServiceDecorator(
+        provider.GetRequiredService<AssetService>(),
+        provider.GetRequiredService<ILogger<ResilientAssetServiceDecorator>>()
+    ));
+// builder.Services.AddScoped<CloudGuard.Api.Services.IAssetService, CloudGuard.Api.Services.AssetService>();
 var app = builder.Build();
 
 // Configure the HTTP request delivery pipeline
