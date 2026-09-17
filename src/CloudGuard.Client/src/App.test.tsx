@@ -1,10 +1,9 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { App } from './App';
 import { fetchServerAssets } from './services/api';
 import type { ServerAsset } from './types';
 
-// Mock the API client library completely
 vi.mock('./services/api', () => ({
   fetchServerAssets: vi.fn(),
 }));
@@ -37,6 +36,11 @@ describe('App Root Component Integration', () => {
     vi.clearAllMocks();
   });
 
+  // 💡 Reset clock state explicitly after EVERY single test case to prevent resource leakage!
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders loading state initially, then resolves data telemetry cleanly', async () => {
     vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
 
@@ -56,20 +60,34 @@ describe('App Root Component Integration', () => {
 
   it('filters table rows fluidly when typing inside the OS search input box', async () => {
     vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+
+    // 1. Render under standard real-world clocks first so async fetches resolve naturally
     render(<App />);
 
+    // 2. Wait for the initial loading boundary to clear out completely
     await waitFor(() => {
       expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
     });
 
+    // 3. Now safely introduce fake timers to handle the useDebounce delay
+    vi.useFakeTimers();
+
+    // 4. Locate the input field which is now fully mounted on screen
     const osInput = screen.getByPlaceholderText('Search servers by OS...');
     fireEvent.change(osInput, { target: { value: 'Ubuntu' } });
 
+    // 5. Fast-forward exactly 300ms inside act to flush out the search debounce hook latency!
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    // 6. Assert row filtering correctness
     expect(screen.getByText('gsy-hr-vm-02')).toBeInTheDocument();
     expect(screen.queryByText('gsy-fin-prod-01')).not.toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 
-  // 👇 ADDED TO COVER LINES 31-32 (API ERROR HANDLING PATH)
   it('gracefully handles telemetry fetching exceptions and renders a red alert card', async () => {
     vi.mocked(fetchServerAssets).mockRejectedValue(new Error('Network conflict or gateway timeout.'));
 
@@ -83,32 +101,25 @@ describe('App Root Component Integration', () => {
     expect(screen.getByText('Network conflict or gateway timeout.')).toBeInTheDocument();
   });
 
-  // 👇 HIGHLY OPTIMIZED UNMOUNT INTERCEPTOR FOR LINE 50
   it('clears active polling timers and updates mounting flags on component unmount', async () => {
     vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
     const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
 
-    // 1. Render under standard real-time clocks
     const { unmount } = render(<App />);
 
-    // 2. Wait for async layout mounting to clear out naturally
     await waitFor(() => {
       expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
     });
 
-    // 3. Swap in fake timers safely now that async layout tasks are done
     vi.useFakeTimers();
 
-    // 4. Force the dashboard to tear down, executing your line 50 cleanup hook!
-    unmount();
+    act(() => {
+      unmount();
+    });
 
-    // 5. Advance timers to thoroughly flush out any pending intervals
     await vi.advanceTimersByTimeAsync(5000);
 
-    // 6. Assert the cleanup routine accurately intercepted the teardown event
     expect(clearIntervalSpy).toHaveBeenCalled();
-
     clearIntervalSpy.mockRestore();
-    vi.useRealTimers(); // Restore real-world baseline clocks cleanly
   });
 });
