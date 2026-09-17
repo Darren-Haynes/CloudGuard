@@ -6,7 +6,6 @@ using CloudGuard.Api.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
 using Xunit;
 
 namespace CloudGuard.Api.Tests;
@@ -19,13 +18,9 @@ public class ResilientAssetServiceDecoratorTests
         // Arrange
         var innerServiceMock = Substitute.For<IAssetService>();
         var loggerMock = Substitute.For<ILogger<ResilientAssetServiceDecorator>>();
-
         var sampleAsset = new ServerAsset { Id = Guid.NewGuid(), ServerName = "test-resilient-01" };
-
-        // Construct a realistic internal SQLite transient lock error (ErrorCode 5 = Busy)
         var transientException = new SqliteException("Database is locked", 5);
 
-        // Configure a 3-strike simulation sequence: throw the lock exception twice, then pass cleanly on the 3rd turn
         innerServiceMock.UpdateAssetAsync(sampleAsset)
             .Returns(
                 _ => throw transientException,
@@ -38,15 +33,54 @@ public class ResilientAssetServiceDecoratorTests
         // Act
         await decorator.UpdateAssetAsync(sampleAsset);
 
-        // Assert: Verify the decorator retried the operation exactly 3 times total
+        // Assert
         await innerServiceMock.Received(3).UpdateAssetAsync(sampleAsset);
-
-        // Verify that our fallback warning logger recorded the connection blips
         loggerMock.ReceivedWithAnyArgs(2).Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
             Arg.Any<object>(),
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    // 👇 ADDED TO EXECUTE GETALLASSETSASYNC OVER POLLY WRAPPERS
+    [Fact]
+    public async Task GetAllAssetsAsync_ExecutesInnerServiceCleanly()
+    {
+        // Arrange
+        var innerServiceMock = Substitute.For<IAssetService>();
+        var loggerMock = Substitute.For<ILogger<ResilientAssetServiceDecorator>>();
+        var expectedAssets = new List<ServerAsset> { new() { ServerName = "s1" } };
+
+        innerServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(expectedAssets));
+        var decorator = new ResilientAssetServiceDecorator(innerServiceMock, loggerMock);
+
+        // Act
+        var result = await decorator.GetAllAssetsAsync();
+
+        // Assert
+        Assert.Equal(expectedAssets, result);
+        await innerServiceMock.Received(1).GetAllAssetsAsync();
+    }
+
+    // 👇 ADDED TO EXECUTE GETSCOPEDASSETSASYNC OVER POLLY WRAPPERS
+    [Fact]
+    public async Task GetScopedAssetsAsync_ExecutesInnerServiceCleanly()
+    {
+        // Arrange
+        var innerServiceMock = Substitute.For<IAssetService>();
+        var loggerMock = Substitute.For<ILogger<ResilientAssetServiceDecorator>>();
+        var expectedAssets = new List<ServerAsset> { new() { ServerName = "s2" } };
+
+        innerServiceMock.GetScopedAssetsAsync("Building 1", "Room 01")
+            .Returns(Task.FromResult<IEnumerable<ServerAsset>>(expectedAssets));
+        var decorator = new ResilientAssetServiceDecorator(innerServiceMock, loggerMock);
+
+        // Act
+        var result = await decorator.GetScopedAssetsAsync("Building 1", "Room 01");
+
+        // Assert
+        Assert.Equal(expectedAssets, result);
+        await innerServiceMock.Received(1).GetScopedAssetsAsync("Building 1", "Room 01");
     }
 }
