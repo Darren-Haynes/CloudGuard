@@ -5,18 +5,22 @@ import { FilterBar } from './components/FilterBar';
 import { MetricCards } from './components/MetricCards';
 import { SidebarNav } from './components/SidebarNav';
 import { fetchServerAssets } from './services/api';
+import useDebounce from './hooks/useDebounce';
 
 export const App: React.FC = () => {
   const [assets, setAssets] = useState<ServerAsset[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Controlled Filter Input States
+  // Controlled immediate input states (keeps typing liquid-smooth)
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [osQuery, setOsQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
-  // 👇 NEW ARCHITECTURAL SCOPING STATES
+  // 👇 DEBOUCED SEARCH COPIES (Delays filtering computations until typing pauses)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const debouncedOsQuery = useDebounce(osQuery, 300);
+
   const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
 
@@ -72,18 +76,16 @@ export const App: React.FC = () => {
     return matchesBuilding && matchesRoom;
   });
 
-  // 2. Second Tier Filter: Apply Controlled Input Box text searches onto the scoped subset
+  // 2. Second Tier Filter: Apply DEBOUNCED input constraints onto the subset array
   const filteredAssets = scopedAssets.filter((asset) => {
-    const matchesSearch = asset.serverName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesOs = asset.operatingSystem.toLowerCase().includes(osQuery.toLowerCase());
+    const matchesSearch = asset.serverName.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+    const matchesOs = asset.operatingSystem.toLowerCase().includes(debouncedOsQuery.toLowerCase());
     const matchesStatus = statusFilter === '' || asset.securityStatus === statusFilter;
     return matchesSearch && matchesOs && matchesStatus;
   });
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#111827' }}>
-
-      {/* 🧭 LEFT SIDEBAR PANEL COMPONENT CONTAINER */}
       <SidebarNav
         assets={assets}
         selectedBuilding={selectedBuilding}
@@ -91,7 +93,6 @@ export const App: React.FC = () => {
         onSelectScope={handleSelectScope}
       />
 
-      {/* 🖥️ MAIN CONTENT BODY ACCORDION VIEWPORT */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
@@ -102,29 +103,9 @@ export const App: React.FC = () => {
             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           }}
         >
-
-          <header
-            style={{
-              marginBottom: '2rem',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center', // Centers alignment lines completely
-              width: '100%',
-              boxSizing: 'border-box'
-            }}
-          >
+          <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', boxSizing: 'border-box' }}>
             <div style={{ textAlign: 'left' }}>
-              {/* 💡 Overrode global index.css 56px size to prevent layout breaking */}
-              <h1
-                style={{
-                  fontSize: '1.75rem', // Locks text to a clean dashboard scale
-                  fontWeight: 700,
-                  color: '#f9fafb',
-                  margin: '0 0 0.5rem 0', // Wipes out index.css 32px margins
-                  letterSpacing: 'normal',
-                  lineHeight: '1.2'
-                }}
-              >
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#f9fafb', margin: '0 0 0.5rem 0', letterSpacing: 'normal', lineHeight: '1.2' }}>
                 CloudGuard Infrastructure Dashboard
               </h1>
               <p style={{ color: '#9ca3af', margin: 0, fontSize: '0.95rem' }}>
@@ -133,7 +114,6 @@ export const App: React.FC = () => {
               </p>
             </div>
 
-            {/* 📥 DYNAMIC CONTEXT-AWARE CSV EXPORT BUTTON */}
             <button
               onClick={() => {
                 const baseUrl = 'http://localhost:5003/api/asset/export';
@@ -141,7 +121,6 @@ export const App: React.FC = () => {
                 if (selectedBuilding) params.append('building', selectedBuilding);
                 if (selectedRoom) params.append('room', selectedRoom);
 
-                // Construct and trigger the file download URL signature natively over the wire
                 const downloadUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
                 window.location.href = downloadUrl;
               }}
@@ -159,7 +138,7 @@ export const App: React.FC = () => {
                 cursor: 'pointer',
                 transition: 'background-color 150ms ease',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                flexShrink: 0, // 🔥 Guarantees the button can NEVER shrink or be pushed off-screen
+                flexShrink: 0,
                 marginLeft: '1.5rem'
               }}
               onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
@@ -178,7 +157,6 @@ export const App: React.FC = () => {
               </div>
             ) : (
               <>
-                {/* Metric Cards dynamically aggregate the SCOPED asset array on the fly! */}
                 <MetricCards assets={scopedAssets} />
 
                 <FilterBar
@@ -199,3 +177,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+export default App;
