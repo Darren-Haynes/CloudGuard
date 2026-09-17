@@ -13,6 +13,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+    <PackageReference Include="Polly" Version="8.8.0" />
   </ItemGroup>
 
   <Target Name="DeleteSqliteDb" BeforeTargets="Clean;BeforeBuild" Condition="'$(Configuration)' == 'Debug'">
