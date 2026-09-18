@@ -3,12 +3,13 @@ import type { ServerAsset } from '../types';
 
 interface DashboardTableProps {
   assets: ServerAsset[];
+  onSelectServer: (id: string) => void; // 👇 1. ADDED TO CAPTURE DYNAMIC DRILLDOWN TRANSITIONS
 }
 
 type SortField = 'serverName' | 'operatingSystem' | 'missingPatches';
 type SortDirection = 'asc' | 'desc';
 
-export const DashboardTable: React.FC<DashboardTableProps> = ({ assets }) => {
+export const DashboardTable: React.FC<DashboardTableProps> = ({ assets, onSelectServer }) => {
   const [sortField, setSortField] = useState<SortField>('serverName');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
@@ -77,11 +78,37 @@ export const DashboardTable: React.FC<DashboardTableProps> = ({ assets }) => {
         </thead>
         <tbody>
           {sortedAssets.map((asset) => (
-            <tr key={asset.id} style={{ borderBottom: '1px solid var(--border, #2e303a)', backgroundColor: 'var(--card-bg, #1f2028)' }}>
-              <td style={{ padding: '1rem 1.25rem', fontWeight: 500, color: 'var(--text-h, #f3f4f6)' }}>{asset.serverName}</td>
-              <td style={{ padding: '1rem 1.25rem', color: 'var(--text, #9ca3af)' }}>{asset.operatingSystem}</td>
-              <td style={{ padding: '1rem 1.25rem', color: 'var(--text, #9ca3af)' }}>{asset.missingPatches}</td>
-              <td style={{ padding: '1rem 1.25rem' }}>
+            <tr
+              key={asset.id}
+              onClick={() => onSelectServer(asset.id)}
+              style={{
+                borderBottom: '1px solid var(--border, #2e303a)',
+                backgroundColor: 'var(--card-bg, #1f2028)',
+                cursor: 'pointer', // Fallback structural tracking
+                transition: 'background-color 150ms ease'
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--border)')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--card-bg)')}
+            >
+              {/* 💡 Explicit cursor overrides on every single td block forces Brave to paint the hand icon! */}
+
+              <td style={{ padding: '1rem 1.25rem', fontWeight: 500 }}>
+                {/* 👇 Wrapped inside an inline text block with an explicit pointer style to force Brave's hand! */}
+                <span
+                  style={{
+                    color: 'var(--text-h, #f3f4f6)',
+                    cursor: 'pointer',
+                    textDecoration: 'none'
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                  onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                >
+                  {asset.serverName}
+                </span>
+              </td>
+              <td style={{ padding: '1rem 1.25rem', color: 'var(--text, #9ca3af)', cursor: 'pointer' }}>{asset.operatingSystem}</td>
+              <td style={{ padding: '1rem 1.25rem', color: 'var(--text, #9ca3af)', cursor: 'pointer' }}>{asset.missingPatches}</td>
+              <td style={{ padding: '1rem 1.25rem', cursor: 'pointer' }}>
                 <span style={{
                   display: 'inline-block',
                   padding: '0.25rem 0.625rem',
@@ -89,13 +116,13 @@ export const DashboardTable: React.FC<DashboardTableProps> = ({ assets }) => {
                   fontSize: '0.75rem',
                   fontWeight: 600,
                   backgroundColor: asset.securityStatus === 'Critical' ? 'var(--status-critical-bg)' : asset.securityStatus === 'Vulnerable' ? 'var(--status-vulnerable-bg)' : 'var(--status-compliant-bg)',
-                  color: asset.securityStatus === 'Critical' ? '#f87171' : asset.securityStatus === 'Vulnerable' ? '#fbbf24' : '#34d399',
-                  border: `1px solid ${asset.securityStatus === 'Critical' ? '#7f1d1d' : asset.securityStatus === 'Vulnerable' ? '#78350f' : '#064e3b'}`
+                  color: asset.securityStatus === 'Critical' ? 'var(--status-critical-text)' : asset.securityStatus === 'Vulnerable' ? 'var(--status-vulnerable-text)' : 'var(--status-compliant-text)',
+                  border: `1px solid ${asset.securityStatus === 'Critical' ? 'var(--status-critical-border)' : asset.securityStatus === 'Vulnerable' ? 'var(--status-vulnerable-border)' : 'var(--status-compliant-border)'}`,
                 }}>
                   {asset.securityStatus}
                 </span>
               </td>
-              <td style={{ padding: '1rem 1.25rem', color: 'var(--text, #9ca3af)', fontSize: '0.85rem' }}>
+              <td style={{ padding: '1rem 1.25rem', color: 'var(--text, #9ca3af)', fontSize: '0.85rem', cursor: 'pointer' }}>
                 {new Date(asset.lastAuditedAt).toLocaleTimeString()}
               </td>
             </tr>

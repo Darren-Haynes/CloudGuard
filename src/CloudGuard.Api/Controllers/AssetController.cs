@@ -51,4 +51,21 @@ public class AssetController(IAssetService assetService) : ControllerBase
         // 4. Return an explicit binary octet-stream file download handle back over the wire
         return File(csvBytes, "text/csv", cleanFileName);
     }
+
+    // 👇 CASE-INSENSITIVE DEEP DIVE RETRIEVAL CHANNEL
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<ServerAsset>> GetAssetById(Guid id)
+    {
+        var assets = await assetService.GetAllAssetsAsync();
+
+        // Match GUID values explicitly to bypass network string serialization mismatches
+        var selectedAsset = assets.FirstOrDefault(s => s.Id == id);
+
+        if (selectedAsset == null)
+        {
+            return NotFound(new { message = $"Server node with ID {id} was not tracked in our active perimeters." });
+        }
+
+        return Ok(selectedAsset);
+    }
 }

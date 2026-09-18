@@ -15,8 +15,9 @@
   }
 }
 
-/* 🌙 THE REFACTOR-MAPPED DARK THEME */
-.dark-theme {
+/* 🌙 THE SYSTEM DARK THEME SPECIFICATIONS */
+.dark-theme,
+:root:not(.light-theme) {
   --text: #9ca3af;
   --text-h: #f3f4f6;
   --bg: #16171d;
@@ -31,7 +32,6 @@
   --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   color-scheme: dark;
 
-  /* 👇 SEMANTIC STATUS BADGES (Dark Mode - Deep fills, bright text) */
   --status-critical-bg: #2d1a1a;
   --status-critical-text: #f87171;
   --status-critical-border: #7f1d1d;
@@ -45,7 +45,7 @@
   --status-compliant-border: #064e3b;
 }
 
-/* ☀️ THE INVERTED LIGHT THEME */
+/* ☀️ THE INVERTED LIGHT THEME SPECIFICATIONS */
 .light-theme {
   --text: #4b5563;
   --text-h: #08060d;
@@ -61,7 +61,6 @@
   --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
   color-scheme: light;
 
-  /* 👇 SEMANTIC STATUS BADGES (Light Mode - Soft pastel fills, high-contrast text) */
   --status-critical-bg: #fef2f2;
   --status-critical-text: #dc2626;
   --status-critical-border: #fca5a5;
@@ -91,12 +90,10 @@ body {
   margin: 0;
   background-color: var(--bg);
   color: var(--text);
-  /* Added a buttery smooth theme shifting transition anchor handle */
   transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 
-h1,
-h2 {
+h1, h2 {
   font-family: var(--heading);
   font-weight: 500;
   color: var(--text-h);
@@ -126,8 +123,7 @@ p {
   margin: 0;
 }
 
-code,
-.counter {
+code, .counter {
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
@@ -139,9 +135,4 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
-}
-
-#social .button-icon {
-  /* Dynamic invert rule shifts depending on theme state */
-  filter: var(--color-scheme, dark) === dark ? invert(1) brightness(2) : none;
 }
