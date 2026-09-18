@@ -1,25 +1,10 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -30,28 +15,68 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* 🌙 THE REFACTOR-MAPPED DARK THEME */
+.dark-theme {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --card-bg: #1f2028;
+  --sidebar-bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  color-scheme: dark;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  /* 👇 SEMANTIC STATUS BADGES (Dark Mode - Deep fills, bright text) */
+  --status-critical-bg: #2d1a1a;
+  --status-critical-text: #f87171;
+  --status-critical-border: #7f1d1d;
+
+  --status-vulnerable-bg: #2e251a;
+  --status-vulnerable-text: #fbbf24;
+  --status-vulnerable-border: #78350f;
+
+  --status-compliant-bg: #1a2e22;
+  --status-compliant-text: #34d399;
+  --status-compliant-border: #064e3b;
+}
+
+/* ☀️ THE INVERTED LIGHT THEME */
+.light-theme {
+  --text: #4b5563;
+  --text-h: #08060d;
+  --bg: #f9fafb;
+  --card-bg: #ffffff;
+  --sidebar-bg: #f3f4f6;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: #aa3bff;
+  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-border: rgba(170, 59, 255, 0.5);
+  --social-bg: rgba(244, 243, 236, 0.5);
+  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  color-scheme: light;
+
+  /* 👇 SEMANTIC STATUS BADGES (Light Mode - Soft pastel fills, high-contrast text) */
+  --status-critical-bg: #fef2f2;
+  --status-critical-text: #dc2626;
+  --status-critical-border: #fca5a5;
+
+  --status-vulnerable-bg: #fffbeb;
+  --status-vulnerable-text: #d97706;
+  --status-vulnerable-border: #fde68a;
+
+  --status-compliant-bg: #f0fdf4;
+  --status-compliant-text: #16a34a;
+  --status-compliant-border: #bbf7d0;
 }
 
 #root {
-  width: 2000px;
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
@@ -64,6 +89,10 @@
 
 body {
   margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  /* Added a buttery smooth theme shifting transition anchor handle */
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 
 h1,
@@ -82,6 +111,7 @@ h1 {
     margin: 20px 0;
   }
 }
+
 h2 {
   font-size: 24px;
   line-height: 118%;
@@ -91,6 +121,7 @@ h2 {
     font-size: 20px;
   }
 }
+
 p {
   margin: 0;
 }
@@ -108,4 +139,9 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+#social .button-icon {
+  /* Dynamic invert rule shifts depending on theme state */
+  filter: var(--color-scheme, dark) === dark ? invert(1) brightness(2) : none;
 }
