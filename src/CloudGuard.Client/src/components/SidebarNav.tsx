@@ -14,27 +14,23 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   selectedRoom,
   onSelectScope,
 }) => {
-  // Local state array tracking which building accordions are expanded/toggled open
   const [expandedBuildings, setExpandedBuildings] = useState<Record<string, boolean>>({
-    'Building 1': true, // Keep Building 1 open by default for a populated landing state
+    'Building 1': true,
   });
 
   const toggleBuilding = (building: string) => {
     setExpandedBuildings((prev) => ({ ...prev, [building]: !prev[building] }));
   };
 
-  // Define our strict architectural infrastructure map baseline configuration
   const infrastructureMap: Record<string, string[]> = {
     'Building 1': ['Room 01', 'Room 02', 'Room 03', 'Room 04', 'Room 05', 'Room 06', 'Room 07'],
     'Building 2': ['Room 01', 'Room 02', 'Room 03'],
     'Building 3': ['Room 01', 'Room 02'],
   };
 
-  // Helper function to extract security status flags and return the correct visual anchor
   const getStatusIndicator = (filteredAssets: ServerAsset[]) => {
     if (filteredAssets.length === 0) return null;
     const statuses = filteredAssets.map((a) => a.securityStatus);
-
     if (statuses.includes('Critical')) return <span style={{ color: '#f87171', marginLeft: 'auto' }}>🔴</span>;
     if (statuses.includes('Vulnerable')) return <span style={{ color: '#fbbf24', marginLeft: 'auto' }}>🟡</span>;
     return <span style={{ color: '#34d399', marginLeft: 'auto' }}>🟢</span>;
@@ -44,8 +40,8 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     <aside
       style={{
         width: '280px',
-        backgroundColor: '#111827',
-        borderRight: '1px solid #374151',
+        backgroundColor: 'var(--sidebar-bg, #16171d)',
+        borderRight: '1px solid var(--border, #2e303a)',
         padding: '1.5rem 1rem',
         display: 'flex',
         flexDirection: 'column',
@@ -54,13 +50,13 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         position: 'sticky',
         top: 0,
         overflowY: 'auto',
+        transition: 'all 200ms ease'
       }}
     >
-      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', tracking: '0.05em', paddingLeft: '0.5rem' }}>
+      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text, #9ca3af)', textTransform: 'uppercase', paddingLeft: '0.5rem' }}>
         Infrastructure Scope
       </div>
 
-      {/* 🌐 VIEW ENTIRE FLEET ROOT LINK */}
       <button
         onClick={() => onSelectScope(null, null)}
         style={{
@@ -69,22 +65,21 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           width: '100%',
           padding: '0.75rem 1rem',
           borderRadius: '0.375rem',
-          border: '1px solid #374151',
-          backgroundColor: selectedBuilding === null ? '#1f2937' : 'transparent',
-          color: selectedBuilding === null ? '#ffffff' : '#9ca3af',
+          border: '1px solid var(--border, #2e303a)',
+          backgroundColor: selectedBuilding === null ? 'var(--card-bg, #1f2028)' : 'transparent',
+          color: selectedBuilding === null ? 'var(--text-h, #f3f4f6)' : 'var(--text, #9ca3af)',
           fontWeight: selectedBuilding === null ? 600 : 500,
           fontSize: '0.9rem',
           cursor: 'pointer',
           textAlign: 'left',
-          transition: 'all 150ms ease',
+          transition: 'all 200ms ease',
         }}
       >
         <span>🌐 View Entire Fleet</span>
-        <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: '0.5rem' }}>({assets.length})</span>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text, #9ca3af)', marginLeft: '0.5rem' }}>({assets.length})</span>
         {getStatusIndicator(assets)}
       </button>
 
-      {/* 🏛️ ACCORDION LIST WRAPPER */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {Object.entries(infrastructureMap).map(([building, rooms]) => {
           const buildingAssets = assets.filter((a) => a.buildingName === building);
@@ -92,7 +87,6 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
 
           return (
             <div key={building} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              {/* Building Trigger Header Line */}
               <div
                 onClick={() => toggleBuilding(building)}
                 style={{
@@ -100,23 +94,22 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                   alignItems: 'center',
                   padding: '0.625rem 0.75rem',
                   borderRadius: '0.375rem',
-                  color: selectedBuilding === building ? '#ffffff' : '#d1d5db',
+                  color: selectedBuilding === building ? 'var(--text-h, #f3f4f6)' : 'var(--text, #9ca3af)',
                   fontSize: '0.9rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  backgroundColor: selectedBuilding === building && selectedRoom === null ? '#1f2937' : 'transparent',
-                  transition: 'background-color 150ms ease',
+                  backgroundColor: selectedBuilding === building && selectedRoom === null ? 'var(--card-bg, #1f2028)' : 'transparent',
+                  transition: 'all 200ms ease',
                 }}
               >
                 <span style={{ marginRight: '0.5rem', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 150ms ease', display: 'inline-block', fontSize: '0.75rem' }}>
                   ▶
                 </span>
                 <span>🏢 {building}</span>
-                <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: '0.4rem' }}>({buildingAssets.length})</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text, #9ca3af)', marginLeft: '0.4rem' }}>({buildingAssets.length})</span>
                 {getStatusIndicator(buildingAssets)}
               </div>
 
-              {/* Nested Rooms Submenu Items Block */}
               {isExpanded && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', paddingLeft: '1.75rem' }}>
                   {rooms.map((room) => {
@@ -134,17 +127,17 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                           padding: '0.5rem 0.75rem',
                           borderRadius: '0.25rem',
                           border: 'none',
-                          backgroundColor: isSelected ? '#374151' : 'transparent',
-                          color: isSelected ? '#ffffff' : '#9ca3af',
+                          backgroundColor: isSelected ? 'var(--border, #2e303a)' : 'transparent',
+                          color: isSelected ? 'var(--text-h, #f3f4f6)' : 'var(--text, #9ca3af)',
                           fontSize: '0.85rem',
                           fontWeight: isSelected ? 600 : 500,
                           cursor: 'pointer',
                           textAlign: 'left',
-                          transition: 'all 150ms ease',
+                          transition: 'all 200ms ease',
                         }}
                       >
                         <span>🔑 {room}</span>
-                        <span style={{ fontSize: '0.75rem', color: '#6b7280', marginLeft: '0.35rem' }}>({roomAssets.length})</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text, #9ca3af)', marginLeft: '0.35rem' }}>({roomAssets.length})</span>
                         {getStatusIndicator(roomAssets)}
                       </button>
                     );
