@@ -1,9 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DashboardTable } from './DashboardTable';
 import type { ServerAsset } from '../types';
 
 describe('DashboardTable Component', () => {
+  // 💡 Add a spy handle to track drilldown clicks accurately
+  const mockOnSelectServer = vi.fn();
+
   const mockAssets: ServerAsset[] = [
     {
       id: '1',
@@ -13,7 +16,24 @@ describe('DashboardTable Component', () => {
       securityStatus: 'Vulnerable',
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
-      serverRoom: 'Room 02'
+      serverRoom: 'Room 02',
+      // 👇 New full-stack telemetry contracts added to pass typescript checks
+      cpuCoreCount: 4,
+      installedRamGb: 16,
+      ipAddress: '10.1.10.20',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 86400,
+      freeRamGb: 4.2,
+      cpuAgeMonths: 12,
+      ramAgeMonths: 12,
+      diskAgeMonths: 12,
+      avgCpuLoad24H: 25.5,
+      avgCpuLoad1W: 20.1,
+      avgCpuLoad1M: 18.5,
+      avgRamLoad24H: 45.2,
+      avgRamLoad1W: 42.1,
+      avgRamLoad1M: 40.5,
+      lastShellCommands: 'df -h'
     },
     {
       id: '2',
@@ -23,7 +43,23 @@ describe('DashboardTable Component', () => {
       securityStatus: 'Compliant',
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
-      serverRoom: 'Room 01'
+      serverRoom: 'Room 01',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      ipAddress: '10.1.10.21',
+      macAddress: '00:11:22:33:44:56',
+      uptimeSeconds: 172800,
+      freeRamGb: 12.8,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 15.5,
+      avgCpuLoad1W: 12.1,
+      avgCpuLoad1M: 10.5,
+      avgRamLoad24H: 35.2,
+      avgRamLoad1W: 32.1,
+      avgRamLoad1M: 30.5,
+      lastShellCommands: 'ipconfig'
     },
     {
       id: '3',
@@ -33,12 +69,28 @@ describe('DashboardTable Component', () => {
       securityStatus: 'Vulnerable',
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
-      serverRoom: 'Room 01'
+      serverRoom: 'Room 01',
+      cpuCoreCount: 16,
+      installedRamGb: 64,
+      ipAddress: '10.1.10.22',
+      macAddress: '00:11:22:33:44:57',
+      uptimeSeconds: 259200,
+      freeRamGb: 44.1,
+      cpuAgeMonths: 24,
+      ramAgeMonths: 24,
+      diskAgeMonths: 24,
+      avgCpuLoad24H: 5.5,
+      avgCpuLoad1W: 4.1,
+      avgCpuLoad1M: 3.5,
+      avgRamLoad24H: 15.2,
+      avgRamLoad1W: 12.1,
+      avgRamLoad1M: 10.5,
+      lastShellCommands: 'Get-Disk'
     }
   ];
 
   it('renders server row entries accurately inside the table body grid layout', () => {
-    render(<DashboardTable assets={mockAssets} />);
+    render(<DashboardTable assets={mockAssets} onSelectServer={mockOnSelectServer} />);
 
     expect(screen.getByText('gsy-fin-prod-01')).toBeInTheDocument();
     expect(screen.getByText('Ubuntu 22.04 LTS')).toBeInTheDocument();
@@ -46,45 +98,35 @@ describe('DashboardTable Component', () => {
   });
 
   it('executes interactive column sorting and applies secondary alphabetical tie-breakers correctly', () => {
-    render(<DashboardTable assets={mockAssets} />);
+    render(<DashboardTable assets={mockAssets} onSelectServer={mockOnSelectServer} />);
 
-    // Locate the clickable 'OS' header target
     const osHeader = screen.getByText(/OS/i);
 
-    // Click once to trigger ascending sort by Operating System
     fireEvent.click(osHeader);
+    let rows = screen.getAllByRole('row').slice(1);
+    expect(rows[0]).toHaveTextContent('gsy-hr-vm-02');
 
-    let rows = screen.getAllByRole('row').slice(1); // Exclude header row
-    expect(rows[0]).toHaveTextContent('gsy-hr-vm-02'); // Ubuntu ('U') before Windows ('W')
-
-    // Click to sort by OS again to reverse primary direction and trigger secondary tie-breakers
     fireEvent.click(osHeader);
-
     rows = screen.getAllByRole('row').slice(1);
 
-    // Check our secondary alphabetical tie-breaker sequence explicitly
-    expect(rows[0]).toHaveTextContent('gsy-backup-nas-01'); // 'b' comes before 'f'
+    expect(rows[0]).toHaveTextContent('gsy-backup-nas-01');
     expect(rows[1]).toHaveTextContent('gsy-fin-prod-01');
   });
 
-  // 👇 ADDED TO COVER LINES 30, 58, 93, 105 (DESCENDING NUMERICAL SORT PATH)
   it('reverses row order mathematically when sorting by missing patches in descending direction', () => {
-    render(<DashboardTable assets={mockAssets} />);
+    render(<DashboardTable assets={mockAssets} onSelectServer={mockOnSelectServer} />);
 
     const patchesHeader = screen.getByText(/Missing Patches/i);
 
-    // 1. First Click: Sort by patches ascending (0 -> 4 -> 12)
     fireEvent.click(patchesHeader);
     let rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('gsy-fin-prod-01'); // 0 patches
+    expect(rows[0]).toHaveTextContent('gsy-fin-prod-01');
 
-    // 2. Second Click: Sort by patches descending (12 -> 4 -> 0)
     fireEvent.click(patchesHeader);
     rows = screen.getAllByRole('row').slice(1);
 
-    // Verify that the highest numerical values are forced right to the top of the grid
-    expect(rows[0]).toHaveTextContent('gsy-backup-nas-01'); // 12 patches
-    expect(rows[1]).toHaveTextContent('gsy-hr-vm-02');      // 4 patches
-    expect(rows[2]).toHaveTextContent('gsy-fin-prod-01');     // 0 patches
+    expect(rows[0]).toHaveTextContent('gsy-backup-nas-01');
+    expect(rows[1]).toHaveTextContent('gsy-hr-vm-02');
+    expect(rows[2]).toHaveTextContent('gsy-fin-prod-01');
   });
 });
