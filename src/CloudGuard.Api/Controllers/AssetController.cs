@@ -68,4 +68,73 @@ public class AssetController(IAssetService assetService) : ControllerBase
 
         return Ok(selectedAsset);
     }
+
+    // 👇 SINGLE-SERVER PLAIN TEXT SYSTEM INTEGRITY REPORT EXPORTER
+    [HttpGet("{id:guid}/export/text")]
+    public async Task<IActionResult> ExportAssetTextReport(Guid id)
+    {
+        var assets = await assetService.GetAllAssetsAsync();
+
+        // Isolate the single server asset from the resilient database tier using the path GUID
+        var asset = assets.FirstOrDefault(s => s.Id == id);
+
+        if (asset == null)
+        {
+            return NotFound(new { message = $"Server node with ID {id} was not tracked in our active perimeters." });
+        }
+
+        var reportBuilder = new StringBuilder();
+
+        // 1. Header Block
+        reportBuilder.AppendLine("====================================================");
+        reportBuilder.AppendLine(" CLOUDGUARD ENTERPRISE SECURE SYSTEM INTEGRITY REPORT");
+        reportBuilder.AppendLine("====================================================");
+        reportBuilder.AppendLine($"Server Name       : {asset.ServerName}");
+        reportBuilder.AppendLine($"Operating System  : {asset.OperatingSystem}");
+        reportBuilder.AppendLine($"Building / Room   : {asset.BuildingName} / {asset.ServerRoom}");
+        reportBuilder.AppendLine($"Last Audited At   : {asset.LastAuditedAt:yyyy-MM-dd HH:mm:ss} UTC");
+        reportBuilder.AppendLine($"Security Status   : {asset.SecurityStatus}");
+        reportBuilder.AppendLine($"Missing Patches   : {asset.MissingPatches}");
+        reportBuilder.AppendLine("----------------------------------------------------");
+
+        // 2. Hardware Specifications
+        reportBuilder.AppendLine("HARDWARE SPECIFICATIONS");
+        reportBuilder.AppendLine($"  CPU Cores       : {asset.CpuCoreCount}");
+        reportBuilder.AppendLine($"  Installed RAM   : {asset.InstalledRamGb} GB");
+        reportBuilder.AppendLine($"  Free RAM        : {asset.FreeRamGb} GB");
+        reportBuilder.AppendLine($"  IP Address      : {asset.IpAddress}");
+        reportBuilder.AppendLine($"  MAC Address     : {asset.MacAddress}");
+        reportBuilder.AppendLine($"  CPU Age         : {asset.CpuAgeMonths} months");
+        reportBuilder.AppendLine($"  RAM Age         : {asset.RamAgeMonths} months");
+        reportBuilder.AppendLine($"  Disk Age        : {asset.DiskAgeMonths} months");
+        reportBuilder.AppendLine("----------------------------------------------------");
+
+        // 3. Uptime & Load Telemetry
+        reportBuilder.AppendLine("UPTIME & LOAD TELEMETRY");
+        reportBuilder.AppendLine($"  Uptime (seconds): {asset.UptimeSeconds}");
+        reportBuilder.AppendLine($"  Avg CPU Load 24H: {asset.AvgCpuLoad24H}%");
+        reportBuilder.AppendLine($"  Avg CPU Load 1W : {asset.AvgCpuLoad1W}%");
+        reportBuilder.AppendLine($"  Avg CPU Load 1M : {asset.AvgCpuLoad1M}%");
+        reportBuilder.AppendLine($"  Avg RAM Load 24H: {asset.AvgRamLoad24H}%");
+        reportBuilder.AppendLine($"  Avg RAM Load 1W : {asset.AvgRamLoad1W}%");
+        reportBuilder.AppendLine($"  Avg RAM Load 1M : {asset.AvgRamLoad1M}%");
+        reportBuilder.AppendLine("----------------------------------------------------");
+
+        // 4. Last 5 Shell Commands Breakdown
+        reportBuilder.AppendLine("LAST 5 SHELL COMMANDS EXECUTED");
+        var shellCommands = asset.LastShellCommands.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < shellCommands.Length; i++)
+        {
+            reportBuilder.AppendLine($"  [{i + 1}] {shellCommands[i]}");
+        }
+        reportBuilder.AppendLine("====================================================");
+
+        // 5. Encode the string memory block into a UTF-8 byte array
+        var reportBytes = Encoding.UTF8.GetBytes(reportBuilder.ToString());
+
+        var cleanFileName = $"cloudguard_audit_{asset.ServerName}.txt";
+
+        // 6. Return an explicit binary attachment file handle back over the wire
+        return File(reportBytes, "text/plain", cleanFileName);
+    }
 }
