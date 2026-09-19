@@ -56,6 +56,12 @@ describe('ServerDetail Component Suite', () => {
       expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
     });
 
+    // Assert the deep telemetry text grid lines have fully mounted on screen
+    expect(screen.getByText('64 GB DDR4')).toBeInTheDocument();
+    expect(screen.getByText('AA:BB:CC:DD:EE:FF')).toBeInTheDocument();
+    expect(screen.getByText('45.2%')).toBeInTheDocument();
+    expect(screen.getByText('60.1%')).toBeInTheDocument();
+
     // Assert high-level metadata elements
     expect(screen.getByText('🖥️ building1-rm01-001')).toBeInTheDocument();
     expect(screen.getByText(/16 Physical Cores/i)).toBeInTheDocument();
@@ -105,5 +111,50 @@ describe('ServerDetail Component Suite', () => {
     fireEvent.click(fallbackReturnBtn);
 
     expect(mockOnBackSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the export dropdown and correctly triggers the plain text download and PDF print handlers', async () => {
+    vi.mocked(fetchServerAssetById).mockResolvedValue(mockSingleAsset);
+
+    // Stub the native browser print engine so window.print() doesn't throw in jsdom
+    const printSpy = vi.fn();
+    vi.stubGlobal('print', printSpy);
+
+    // Stub window.location.href assignment so navigation doesn't error out in jsdom
+    const originalLocation = window.location;
+    // @ts-expect-error -- intentionally deleting to allow a mock replacement
+    delete window.location;
+    window.location = { ...originalLocation, href: '' } as Location;
+
+    render(<ServerDetail assetId="deep-guid-001" onBack={mockOnBackSpy} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
+    });
+
+    // The dropdown menu options should not be present until the export button is clicked
+    expect(screen.queryByText('📄 Download Plain Text (.txt)')).not.toBeInTheDocument();
+    expect(screen.queryByText('🖨️ Print Secure PDF (.pdf)')).not.toBeInTheDocument();
+
+    const exportButton = screen.getByTitle('Export Server Report');
+    fireEvent.click(exportButton);
+
+    // Dropdown menu options should now be visible
+    const downloadTextOption = screen.getByText('📄 Download Plain Text (.txt)');
+    const printPdfOption = screen.getByText('🖨️ Print Secure PDF (.pdf)');
+    expect(downloadTextOption).toBeInTheDocument();
+    expect(printPdfOption).toBeInTheDocument();
+
+    // Trigger the plain text export handler and confirm the streaming endpoint URL is hit
+    fireEvent.click(downloadTextOption);
+    expect(window.location.href).toBe('http://localhost:5003/api/asset/deep-guid-001/export/text');
+
+    // Re-open the dropdown and trigger the native print engine handler
+    fireEvent.click(exportButton);
+    fireEvent.click(screen.getByText('🖨️ Print Secure PDF (.pdf)'));
+    expect(printSpy).toHaveBeenCalledTimes(1);
+
+    // Restore the native window.location object to avoid leaking state into other test files
+    window.location = originalLocation;
   });
 });
