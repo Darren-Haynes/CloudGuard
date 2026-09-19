@@ -13,6 +13,7 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
   const [asset, setAsset] = useState<ServerAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
   useEffect(() => {
     async function loadAsset() {
@@ -53,10 +54,29 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
   return (
     <div style={{ padding: '2rem 1.5rem', width: '100%', boxSizing: 'border-box', textAlign: 'left', fontFamily: 'system-ui, sans-serif' }}>
 
+      {/* 🖨️ PRINT LAYOUT OPTIMIZATION STYLES */}
+      <style>{`
+        @media print {
+          aside,
+          .sd-print-hide {
+            display: none !important;
+          }
+
+          .sd-print-expand {
+            width: 100% !important;
+            max-width: 100% !important;
+            grid-template-columns: 1fr !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+        }
+      `}</style>
+
       {/* HEADER SECTION */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
         <div>
-          <button onClick={onBack} style={{ backgroundColor: 'transparent', color: 'var(--text)', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.9rem', marginBottom: '0.5rem', display: 'block' }}>
+          <button onClick={onBack} className="sd-print-hide" style={{ backgroundColor: 'transparent', color: 'var(--text)', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.9rem', marginBottom: '0.5rem', display: 'block' }}>
             ⬅️ Back to Master Overview
           </button>
           <h2 style={{ fontSize: '2rem', margin: 0, color: 'var(--text-h)' }}>🖥️ {asset.serverName}</h2>
@@ -68,10 +88,85 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
         {/* 🛠️ CONTEXTUAL DETAIL CONTROLS GROUP */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', textAlign: 'right' }}>
 
+          {/* 📥 MULTI-FORMAT EXPORT AUDIT REPORT CONTROL */}
+          <div className="sd-print-hide" style={{ position: 'relative' }}>
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              title="Export Server Report"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                backgroundColor: 'var(--card-bg, #1f2028)',
+                color: 'var(--text-h, #f3f4f6)',
+                border: '1px solid var(--border, #2e303a)',
+                padding: '0.625rem 1rem',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                transition: 'all 150ms ease',
+              }}
+            >
+              📥 Export Server Report
+            </button>
+
+            {isDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 0.5rem)',
+                  right: 0,
+                  minWidth: '240px',
+                  backgroundColor: 'var(--card-bg, #1f2028)',
+                  border: '1px solid var(--border, #2e303a)',
+                  borderRadius: '0.375rem',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                  zIndex: 50,
+                  overflow: 'hidden',
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  onClick={() => {
+                    window.location.href = `http://localhost:5003/api/asset/${assetId}/export/text`;
+                    setIsDropdownOpen(false);
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    fontSize: '0.85rem',
+                    color: 'var(--text-h)',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  📄 Download Plain Text (.txt)
+                </div>
+                <div
+                  onClick={() => {
+                    window.print();
+                    setIsDropdownOpen(false);
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    fontSize: '0.85rem',
+                    color: 'var(--text-h)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🖨️ Print Secure PDF (.pdf)
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* INTERACTIVE COMPONENT THEME TOGGLE */}
           <button
             onClick={onToggleTheme}
             title="Toggle Application Theme"
+            className="sd-print-hide"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -100,7 +195,7 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
       </header>
 
       {/* THREE-COLUMN LAYOUT */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
+      <div className="sd-print-expand" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
 
         {/* ALLOCATION MATRIX */}
         <div style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1.5rem', boxShadow: 'var(--shadow)' }}>
@@ -175,7 +270,7 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
       </div>
 
       {/* TERMINAL AUDIT MATRIX */}
-      <div style={{ backgroundColor: '#0d1117', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1.5rem', fontFamily: 'var(--mono)', boxShadow: 'var(--shadow)' }}>
+      <div className="sd-print-expand" style={{ backgroundColor: '#0d1117', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1.5rem', fontFamily: 'var(--mono)', boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #21262d', paddingBottom: '0.5rem' }}>
           <span style={{ color: '#58a6ff', fontWeight: 600, fontSize: '0.95rem' }}>🛡️ Security Audit Log Terminal Trail (Last 5 Commands)</span>
           <span style={{ color: '#8b949e', fontSize: '0.75rem' }}>Format: {asset.operatingSystem.startsWith('Windows') ? 'PowerShell Kernel' : 'Bash / POSIX Subshell'}</span>
