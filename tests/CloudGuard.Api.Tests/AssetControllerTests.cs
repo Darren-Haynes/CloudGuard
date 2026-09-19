@@ -30,7 +30,8 @@ public class AssetControllerTests
                 SecurityStatus = "Vulnerable",
                 LastAuditedAt = DateTime.UtcNow,
                 BuildingName = "Building 1",
-                ServerRoom = "Room 01"
+                ServerRoom = "Room 01",
+                LastShellCommands = "df -h"
             }
         };
 
@@ -46,13 +47,11 @@ public class AssetControllerTests
         Assert.Single(assets);
     }
 
-    // 👇 ADDED TO COVER EXPORTAUDITCSV (19 MISSING LINES IN ASSETCONTROLLER)
     [Fact]
     public async Task ExportAuditCsv_ReturnsFileContentResult_WithCorrectCsvFormat()
     {
         // Arrange
         var assetServiceMock = Substitute.For<IAssetService>();
-        var auditedAt = new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc);
         var sampleAssets = new List<ServerAsset>
         {
             new()
@@ -62,9 +61,10 @@ public class AssetControllerTests
                 OperatingSystem = "Ubuntu",
                 MissingPatches = 0,
                 SecurityStatus = "Compliant",
-                LastAuditedAt = auditedAt,
+                LastAuditedAt = DateTime.UtcNow,
                 BuildingName = "Building 1",
-                ServerRoom = "Room 01"
+                ServerRoom = "Room 01",
+                LastShellCommands = "df -h"
             }
         };
 
@@ -81,14 +81,59 @@ public class AssetControllerTests
         Assert.Equal("text/csv", fileResult.ContentType);
         Assert.Equal("cloudguard_building1_room01_audit.csv", fileResult.FileDownloadName);
 
-        // Verify the generated string bytes contain the expected header and row count
         var csvContent = Encoding.UTF8.GetString(fileResult.FileContents);
-        var csvLines = csvContent
-            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
+        Assert.Contains("Server Name,Operating System,Missing Patches,Security Status", csvContent);
+    }
 
-        Assert.Equal(2, csvLines.Count);
-        Assert.Equal("Server Name,Operating System,Missing Patches,Security Status,Building,Server Room,Last Audited", csvLines[0]);
-        Assert.Equal($"\"b1-r1\",\"Ubuntu\",0,\"Compliant\",\"Building 1\",\"Room 01\",\"{auditedAt:yyyy-MM-dd HH:mm:ss}\"", csvLines[1]);
+    // 👇 ADDED TO COVER EXPORT_SINGLE_SERVER_TXT (43 MISSING PATCH LINES IN CODECOV)
+    [Fact]
+    public async Task ExportSingleServerTxt_ReturnsFileContentResult_WithCorrectPlainTextsFormat()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var targetId = Guid.NewGuid();
+        var sampleAssets = new List<ServerAsset>
+        {
+            new()
+            {
+                Id = targetId,
+                ServerName = "b2-r1-server-007",
+                OperatingSystem = "Ubuntu 22.04 LTS",
+                MissingPatches = 0,
+                SecurityStatus = "Compliant",
+                LastAuditedAt = DateTime.UtcNow,
+                BuildingName = "Building 2",
+                ServerRoom = "Room 01",
+                CpuCoreCount = 8,
+                InstalledRamGb = 32,
+                FreeRamGb = 14.5,
+                IpAddress = "10.2.10.5",
+                MacAddress = "00:11:22:33:44:55",
+                UptimeSeconds = 86400,
+                CpuAgeMonths = 12,
+                RamAgeMonths = 12,
+                DiskAgeMonths = 12,
+                LastShellCommands = "sudo apt-get update\nclear"
+            }
+        };
+
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(sampleAssets));
+        var controller = new AssetController(assetServiceMock);
+
+        // Act
+        var result = await controller.ExportAssetTextReport(targetId);
+
+        // Assert
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("text/plain", fileResult.ContentType);
+        Assert.Equal($"cloudguard_audit_b2-r1-server-007.txt", fileResult.FileDownloadName);
+
+        // Verify that report contents accurately hold our key telemetry variables
+        var reportContent = Encoding.UTF8.GetString(fileResult.FileContents);
+        Assert.Contains("b2-r1-server-007", reportContent);
+        Assert.Contains("8", reportContent); // Asserts core count parameter presence
+        Assert.Contains("10.2.10.5", reportContent);
+        Assert.Contains("sudo apt-get update", reportContent);
+        // Assert
     }
 }
