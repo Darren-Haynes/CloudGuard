@@ -136,4 +136,23 @@ public class AssetControllerTests
         Assert.Contains("sudo apt-get update", reportContent);
         // Assert
     }
+
+    // 👇 ADDED TO COVER THE ASSET == NULL DEFENSIVE DROPOUT GATEWAYS
+    [Fact]
+    public async Task ExportAssetTextReport_ReturnsNotFound_WhenAssetDoesNotExist()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var nonExistentId = Guid.NewGuid();
+
+        // Return an empty collection to force the lookup comparison to return null
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset>()));
+        var controller = new AssetController(assetServiceMock);
+
+        // Act
+        var result = await controller.ExportAssetTextReport(nonExistentId);
+
+        // Assert
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
 }
