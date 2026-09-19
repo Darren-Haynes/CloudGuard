@@ -38,10 +38,40 @@ public static class DbSeeder
                 var os = osOptions[random.Next(osOptions.Length)];
                 var isWindows = os.StartsWith("Windows");
 
-                var patches = random.Next(0, 16);
-                string status = "Compliant";
+                // Building-specific corporate posture directives:
+                //   Building 2 -> always Compliant (0 patches)
+                //   Building 3 -> always Vulnerable (exactly 3 patches, showcase warning indicators)
+                //   Building 1 (and any other) -> standard weighted posture roll
+                int patches;
+                if (building == "Building 2")
+                {
+                    patches = 0; // Hardcoded: Building 2 is always Compliant
+                }
+                else if (building == "Building 3")
+                {
+                    patches = 3; // Hardcoded: Building 3 is always Vulnerable
+                }
+                else
+                {
+                    int roll = random.Next(1, 101); // 1 to 100
+                    if (roll <= 80)
+                    {
+                        patches = 0; // 80% of the fleet is perfectly clean and green
+                    }
+                    else if (roll <= 90)
+                    {
+                        patches = random.Next(1, 10); // 10% of the fleet: 1-9 missing patches (Vulnerable)
+                    }
+                    else
+                    {
+                        patches = random.Next(10, 16); // Remaining 10%: 10-15 missing patches (Critical)
+                    }
+                }
+
+                string status;
                 if (patches >= 10) status = "Critical";
                 else if (patches > 0) status = "Vulnerable";
+                else status = "Compliant";
 
                 // Generate highly realistic architectural baseline metrics
                 var cores = new[] { 4, 8, 16, 32, 64 }[random.Next(5)];
