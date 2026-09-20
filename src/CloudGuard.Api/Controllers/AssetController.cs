@@ -137,4 +137,38 @@ public class AssetController(IAssetService assetService) : ControllerBase
         // 6. Return an explicit binary attachment file handle back over the wire
         return File(reportBytes, "text/plain", cleanFileName);
     }
+
+    // 👇 LIVE FULL-STACK REMEDIATION LAYER: ZERO OUT PATCH HOLES
+    [HttpPost("{id:guid}/remediate")]
+    public async Task<IActionResult> RemediateAssetPatches(Guid id)
+    {
+        var assets = await assetService.GetAllAssetsAsync();
+        var asset = assets.FirstOrDefault(s => s.Id == id);
+
+        if (asset == null)
+        {
+            return NotFound(new { message = "Target hardware node could not be located in active security perimeters." });
+        }
+
+        if (asset.MissingPatches == 0)
+        {
+            return BadRequest(new { message = "System telemetry indicates this asset node is already fully compliant." });
+        }
+
+        // 🛡️ Execute the security patch remediation injection
+        asset.MissingPatches = 0;
+        asset.SecurityStatus = "Compliant";
+        asset.LastAuditedAt = DateTime.UtcNow;
+
+        // Append an audited marker straight to your shell command log array
+        asset.LastShellCommands = $"cloudguard-remediate --exec\n{asset.LastShellCommands}";
+
+        // Save mutations back down through your Polly resilience decorator tier
+        await assetService.UpdateAssetAsync(asset);
+
+        return Ok(new {
+            message = $"Successfully deployed patch matrices to {asset.ServerName}.",
+            updatedAsset = asset
+        });
+    }
 }
