@@ -155,4 +155,46 @@ public class AssetControllerTests
         // Assert
         Assert.IsType<NotFoundObjectResult>(result);
     }
+
+    // 👇 ADDED TO COVER THE REMEDIATE_ASSET_PATCHES POST ENDPOINT CHANNEL
+    [Fact]
+    public async Task RemediateAssetPatches_ReturnsOkResult_WithZeroedMissingPatches()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var targetId = Guid.NewGuid();
+        var sampleAsset = new ServerAsset
+        {
+            Id = targetId,
+            ServerName = "vulnerable-node-99",
+            OperatingSystem = "Ubuntu",
+            MissingPatches = 5,
+            SecurityStatus = "Vulnerable",
+            LastAuditedAt = DateTime.UtcNow.AddDays(-1),
+            BuildingName = "Building 1",
+            ServerRoom = "Room 01",
+            LastShellCommands = "df -h"
+        };
+
+        // Mock the retrieval and update tracking sequences
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset> { sampleAsset }));
+        assetServiceMock.UpdateAssetAsync(Arg.Any<ServerAsset>()).Returns(Task.CompletedTask);
+
+        var controller = new AssetController(assetServiceMock);
+
+        // Act
+        var result = await controller.RemediateAssetPatches(targetId);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+
+        // Use reflection or dynamic property parsing to check our returned payload variables
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains("Successfully deployed patch matrices", json);
+        Assert.Contains("Compliant", json);
+        Assert.Contains("\"MissingPatches\":0", json);
+
+        // Verify that the Polly resilient tier was explicitly invoked to lock updates
+        await assetServiceMock.Received(1).UpdateAssetAsync(Arg.Is<ServerAsset>(a => a.MissingPatches == 0 && a.SecurityStatus == "Compliant"));
+    }
 }
