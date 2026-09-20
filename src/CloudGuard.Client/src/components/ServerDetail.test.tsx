@@ -1,12 +1,13 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ServerDetail } from './ServerDetail';
-import { fetchServerAssetById } from '../services/api';
+import { fetchServerAssetById, remediateServerPatches } from '../services/api';
 import type { ServerAsset } from '../types';
 
 // Mock our API module layer cleanly
 vi.mock('../services/api', () => ({
   fetchServerAssetById: vi.fn(),
+  remediateServerPatches: vi.fn(),
 }));
 
 describe('ServerDetail Component Suite', () => {
@@ -156,5 +157,71 @@ describe('ServerDetail Component Suite', () => {
 
     // Restore the native window.location object to avoid leaking state into other test files
     window.location = originalLocation;
+  });
+
+  it('executes the live patch remediation sequence and updates the state posture metrics cleanly', async () => {
+    const mockVulnerableAsset: ServerAsset = {
+      ...mockSingleAsset,
+      missingPatches: 5,
+      securityStatus: 'Vulnerable',
+    };
+
+    const mockRemediatedAsset: ServerAsset = {
+      ...mockSingleAsset,
+      missingPatches: 0,
+      securityStatus: 'Compliant',
+    };
+
+    vi.mocked(fetchServerAssetById).mockResolvedValue(mockVulnerableAsset);
+    vi.mocked(remediateServerPatches).mockResolvedValue(mockRemediatedAsset);
+
+    render(<ServerDetail assetId="deep-guid-001" onBack={mockOnBackSpy} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
+    });
+
+    // Assert the vulnerable posture banner and remediation button are present
+    expect(screen.getByText(/Outstanding Vulnerability Drift Detected \(5 Patches Missing\)/i)).toBeInTheDocument();
+    const remediateButton = screen.getByText('⚡ Execute Active Patch Remediation');
+
+    fireEvent.click(remediateButton);
+
+    // Confirm the mutation API was invoked with the correct asset ID
+    expect(remediateServerPatches).toHaveBeenCalledWith('deep-guid-001');
+
+    // Wait for the local asset state to flip to the remediated, fully-compliant payload
+    await waitFor(() => {
+      expect(screen.getByText(/Perimeter Guard Status: Fully Patched & Compliant/i)).toBeInTheDocument();
+    });
+
+    // The vulnerability drift banner and remediation button should no longer be rendered
+    expect(screen.queryByText(/Outstanding Vulnerability Drift Detected/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('⚡ Execute Active Patch Remediation')).not.toBeInTheDocument();
+  });
+
+  it('gracefully handles patch remediation failures and renders error logs inside the network catch block', async () => {
+    // 💡 Simulates a network failure on remediation to execute line 61 completely!
+    vi.mocked(fetchServerAssetById).mockResolvedValue({
+      ...mockSingleAsset,
+      missingPatches: 5,
+      securityStatus: 'Vulnerable'
+    });
+    vi.mocked(remediateServerPatches).mockRejectedValue(new Error('Remediation deployment connection timed out.'));
+
+    render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
+    });
+
+    // Fire the remediation trigger event
+    const remediateBtn = screen.getByText(/Execute Active Patch Remediation/i);
+    fireEvent.click(remediateBtn);
+
+    // Verify that the global or local telemetry catch error intercept maps to the DOM
+    await waitFor(() => {
+      expect(screen.getByText(/Remediation deployment connection timed out./i)).toBeInTheDocument();
+    });
   });
 });

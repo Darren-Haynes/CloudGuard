@@ -11,7 +11,7 @@ export async function fetchServerAssets(): Array<Promise<ServerAsset>> {
   return response.json();
 }
 
-// 👇 NEW: FETCH A SINGLE DENSE INFRASTRUCTURE PROFILE BY UNIQUE ID
+// FETCH A SINGLE DENSE INFRASTRUCTURE PROFILE BY UNIQUE ID
 export async function fetchServerAssetById(id: string): Promise<ServerAsset> {
   const response = await fetch(`${BASE_URL}/${id}`);
   if (!response.ok) {
@@ -21,4 +21,24 @@ export async function fetchServerAssetById(id: string): Promise<ServerAsset> {
     throw new Error('Telemetry retrieval handshake experienced a transient link error.');
   }
   return response.json();
+}
+
+// Execute live security patch remediation sequences over a specific hardware ID
+export async function remediateServerPatches(id: string): Promise<ServerAsset> {
+  const cleanId = id.toString().trim().toLowerCase();
+
+  const response = await fetch(`http://localhost:5003/api/asset/${cleanId}/remediate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Remediation network transaction experienced an unexpected failure.');
+  }
+
+  const data = await response.json();
+  return data.updatedAsset;
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { ServerAsset } from '../types';
-import { fetchServerAssetById } from '../services/api';
+import { fetchServerAssetById, remediateServerPatches } from '../services/api';
 
 interface ServerDetailProps {
   assetId: string;
@@ -14,6 +14,7 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [isRemediating, setIsRemediating] = useState<boolean>(false);
 
   useEffect(() => {
     async function loadAsset() {
@@ -49,6 +50,18 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
     if (months >= 36) return { color: '#f87171', text: '⚠️ Replace Immediately (Lifecycle Expired)' };
     if (months >= 24) return { color: '#fbbf24', text: '🟡 Approaching Refresh Target' };
     return { color: '#34d399', text: '🟢 Health Nominal' };
+  };
+
+  const handleRemediation = async () => {
+    try {
+      setIsRemediating(true);
+      const updatedAsset = await remediateServerPatches(assetId);
+      setAsset(updatedAsset);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to execute active patch remediation sequence.');
+    } finally {
+      setIsRemediating(false);
+    }
   };
 
   return (
@@ -193,6 +206,65 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
           </div>
         </div>
       </header>
+
+      {/* 🛡️ PATCH POSTURE CONTEXTUAL ACTION BANNER */}
+      {asset.securityStatus === 'Compliant' ? (
+        <div
+          className="sd-print-hide"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: 'rgba(52, 211, 153, 0.1)',
+            border: '1px solid #34d399',
+            borderRadius: '0.5rem',
+            padding: '1rem 1.5rem',
+            marginBottom: '2rem',
+          }}
+        >
+          <span style={{ color: '#34d399', fontWeight: 600, fontSize: '0.95rem' }}>
+            🟢 Perimeter Guard Status: Fully Patched & Compliant. Node integrity verified.
+          </span>
+        </div>
+      ) : (
+        <div
+          className="sd-print-hide"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            backgroundColor: 'rgba(251, 191, 36, 0.1)',
+            border: '1px solid #fbbf24',
+            borderRadius: '0.5rem',
+            padding: '1rem 1.5rem',
+            marginBottom: '2rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ color: '#fbbf24', fontWeight: 600, fontSize: '0.95rem' }}>
+            🛡️ Outstanding Vulnerability Drift Detected ({asset.missingPatches} Patches Missing)
+          </span>
+          <button
+            onClick={handleRemediation}
+            disabled={isRemediating}
+            style={{
+              backgroundColor: '#fbbf24',
+              color: '#1f2028',
+              border: 'none',
+              padding: '0.625rem 1.25rem',
+              borderRadius: '0.375rem',
+              cursor: isRemediating ? 'not-allowed' : 'pointer',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              opacity: isRemediating ? 0.7 : 1,
+              transition: 'all 150ms ease',
+            }}
+          >
+            {isRemediating ? '⏳ Remediating…' : '⚡ Execute Active Patch Remediation'}
+          </button>
+        </div>
+      )}
 
       {/* THREE-COLUMN LAYOUT */}
       <div className="sd-print-expand" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
