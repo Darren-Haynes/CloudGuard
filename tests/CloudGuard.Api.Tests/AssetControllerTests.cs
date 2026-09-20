@@ -197,4 +197,35 @@ public class AssetControllerTests
         // Verify that the Polly resilient tier was explicitly invoked to lock updates
         await assetServiceMock.Received(1).UpdateAssetAsync(Arg.Is<ServerAsset>(a => a.MissingPatches == 0 && a.SecurityStatus == "Compliant"));
     }
+
+    // 👇 ADDED TO COVER THE ASSET.MISSINGPATCHES == 0 BADREQUEST DEFENSIVE GATEWAY
+    [Fact]
+    public async Task RemediateAssetPatches_ReturnsBadRequest_WhenAssetIsAlreadyCompliant()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var targetId = Guid.NewGuid();
+        var compliantAsset = new ServerAsset
+        {
+            Id = targetId,
+            ServerName = "already-compliant-node",
+            OperatingSystem = "Ubuntu",
+            MissingPatches = 0, // 🔥 Set to 0 to trigger the BadRequest validation
+            SecurityStatus = "Compliant",
+            LastAuditedAt = DateTime.UtcNow,
+            BuildingName = "Building 1",
+            ServerRoom = "Room 01",
+            LastShellCommands = "df -h"
+        };
+
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset> { compliantAsset }));
+        var controller = new AssetController(assetServiceMock);
+
+        // Act
+        var result = await controller.RemediateAssetPatches(targetId);
+
+        // Assert
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("already fully compliant", badRequestResult.Value?.ToString());
+    }
 }
