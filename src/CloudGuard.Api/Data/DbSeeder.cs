@@ -41,15 +41,24 @@ public static class DbSeeder
                 // Building-specific corporate posture directives:
                 //   Building 2 -> always Compliant (0 patches)
                 //   Building 3 -> always Vulnerable (exactly 3 patches, showcase warning indicators)
+                //   Building 4 -> always Vulnerable (exactly 5 patches, compact remediation sandbox)
                 //   Building 1 (and any other) -> standard weighted posture roll
                 int patches;
+                string status;
                 if (building == "Building 2")
                 {
                     patches = 0; // Hardcoded: Building 2 is always Compliant
+                    status = "Compliant";
                 }
                 else if (building == "Building 3")
                 {
                     patches = 3; // Hardcoded: Building 3 is always Vulnerable
+                    status = "Vulnerable";
+                }
+                else if (building == "Building 4")
+                {
+                    patches = 5; // Hardcoded: Building 4 sandbox nodes always start Vulnerable
+                    status = "Vulnerable";
                 }
                 else
                 {
@@ -66,12 +75,11 @@ public static class DbSeeder
                     {
                         patches = random.Next(10, 16); // Remaining 10%: 10-15 missing patches (Critical)
                     }
-                }
 
-                string status;
-                if (patches >= 10) status = "Critical";
-                else if (patches > 0) status = "Vulnerable";
-                else status = "Compliant";
+                    if (patches >= 10) status = "Critical";
+                    else if (patches > 0) status = "Vulnerable";
+                    else status = "Compliant";
+                }
 
                 // Generate highly realistic architectural baseline metrics
                 var cores = new[] { 4, 8, 16, 32, 64 }[random.Next(5)];
@@ -125,6 +133,8 @@ public static class DbSeeder
         for (int r = 1; r <= 3; r++) generateFleet("Building 2", r.ToString("D2"), 40);
         generateFleet("Building 3", "01", 38);
         generateFleet("Building 3", "02", 39);
+        generateFleet("Building 4", "01", 3);
+        generateFleet("Building 4", "02", 3);
 
         context.ServerAssets.AddRange(servers);
         context.SaveChanges();

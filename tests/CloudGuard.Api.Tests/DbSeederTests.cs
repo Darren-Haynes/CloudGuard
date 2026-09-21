@@ -44,11 +44,12 @@ public class DbSeederTests
         using (var context = new AppDbContext(options))
         {
             var serverCount = await context.ServerAssets.CountAsync();
-            Assert.Equal(427, serverCount); // Verifies the scaled 300 fleet size
+            Assert.Equal(433, serverCount); // Verifies the scaled fleet size, including the 6-node Building 4 sandbox
 
             // Verify that regional infrastructure naming patterns are being generated
             Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName.StartsWith("building1-")));
             Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName.StartsWith("building3-")));
+            Assert.True(await context.ServerAssets.AnyAsync(s => s.ServerName.StartsWith("building4-")));
         }
     }
 
