@@ -26,6 +26,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     'Building 1': ['Room 01', 'Room 02', 'Room 03', 'Room 04', 'Room 05', 'Room 06', 'Room 07'],
     'Building 2': ['Room 01', 'Room 02', 'Room 03'],
     'Building 3': ['Room 01', 'Room 02'],
+    'Building 4': ['Room 01', 'Room 02'], // 💡 Add Building 4 sandbox rooms!
   };
 
   const getStatusIndicator = (filteredAssets: ServerAsset[]) => {
@@ -88,7 +89,13 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           return (
             <div key={building} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <div
-                onClick={() => toggleBuilding(building)}
+                // 👇 UNIQUE DATA ATTRIBUTE ASSIGNED FOR HIGH-PERFORMANCE PLAYWRIGHT GRAPHICS LOGGING
+                data-testid={`sidebar-building-${building.replace(/\s+/g, '').toLowerCase()}`}
+                onClick={() => {
+                  // 🔥 CONTEXT CONTROL BUNDLE: Toggle accordion visuals AND filter table simultaneously!
+                  toggleBuilding(building);
+                  onSelectScope(building, null);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -119,7 +126,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                     return (
                       <button
                         key={room}
-                        onClick={() => onSelectScope(building, room)}
+                        onClick={(e) => {
+                          // Stop bubble propagation to prevent firing parent building container click behaviors
+                          e.stopPropagation();
+                          onSelectScope(building, room);
+                        }}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
