@@ -6,6 +6,7 @@ import { MetricCards } from './components/MetricCards';
 import { SidebarNav } from './components/SidebarNav';
 import { ServerDetail } from './components/ServerDetail';
 import { AuditLedger } from './components/AuditLedger';
+import { ClusterAnalytics } from './components/ClusterAnalytics';
 import { fetchServerAssets } from './services/api';
 import useDebounce from './hooks/useDebounce';
 
@@ -30,8 +31,8 @@ export const App: React.FC = () => {
   // Deep Dive Viewport State
   const [activeServerId, setActiveServerId] = useState<string | null>(null);
 
-  // Main Viewport Tracker (asset fleet grid vs. security audit ledger)
-  const [currentView, setCurrentView] = useState<'fleet' | 'audit'>('fleet');
+  // Main Viewport Tracker (asset fleet grid vs. security audit ledger vs. cluster analytics)
+  const [currentView, setCurrentView] = useState<'fleet' | 'audit' | 'analytics'>('fleet');
 
   // Active Accessibility Theme Tracker
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -88,7 +89,7 @@ export const App: React.FC = () => {
     setCurrentView('fleet');
   };
 
-  const handleSelectView = (view: 'fleet' | 'audit') => {
+  const handleSelectView = (view: 'fleet' | 'audit' | 'analytics') => {
     setCurrentView(view);
     setActiveServerId(null);
   };
@@ -191,6 +192,8 @@ export const App: React.FC = () => {
           <main>
             {currentView === 'audit' ? (
               <AuditLedger />
+            ) : currentView === 'analytics' ? (
+              <ClusterAnalytics assets={assets} />
             ) : isLoading ? (
               <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>Querying telemetry data...</p>
             ) : error !== null ? (
