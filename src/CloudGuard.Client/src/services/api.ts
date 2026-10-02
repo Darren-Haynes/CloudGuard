@@ -1,9 +1,9 @@
-import type { ServerAsset } from '../types';
+import type { ServerAsset, AuditLogEntry } from '../types';
 
 const BASE_URL = 'http://localhost:5003/api/asset';
 
 // Fetch the entire global fleet array
-export async function fetchServerAssets(): Array<Promise<ServerAsset>> {
+export async function fetchServerAssets(): Promise<ServerAsset[]> {
   const response = await fetch(BASE_URL);
   if (!response.ok) {
     throw new Error(`Security service connection failed: ${response.statusText}`);
@@ -13,7 +13,8 @@ export async function fetchServerAssets(): Array<Promise<ServerAsset>> {
 
 // FETCH A SINGLE DENSE INFRASTRUCTURE PROFILE BY UNIQUE ID
 export async function fetchServerAssetById(id: string): Promise<ServerAsset> {
-  const response = await fetch(`${BASE_URL}/${id}`);
+  const cleanId = id.toString().trim().toLowerCase();
+  const response = await fetch(`http://localhost:5003/api/asset/${cleanId}`);
   if (!response.ok) {
     if (response.status === 404) {
       throw new Error('Requested hardware perimeter node could not be located.');
@@ -23,14 +24,17 @@ export async function fetchServerAssetById(id: string): Promise<ServerAsset> {
   return response.json();
 }
 
-// Execute live security patch remediation sequences over a specific hardware ID
+// Execute live security patch remediation sequences with explicit admin identity headers
 export async function remediateServerPatches(id: string): Promise<ServerAsset> {
   const cleanId = id.toString().trim().toLowerCase();
 
   const response = await fetch(`http://localhost:5003/api/asset/${cleanId}/remediate`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      // 👇 INJECT CORPORATE OPERATOR ACCESS CLAIMS FOR THE BACKEND INTERCEPT LOGGER
+      'X-CloudGuard-User': 'darren-sre-lead',
+      'X-CloudGuard-Role': 'SecOps-Admin-Tier3'
     }
   });
 
@@ -41,4 +45,11 @@ export async function remediateServerPatches(id: string): Promise<ServerAsset> {
 
   const data = await response.json();
   return data.updatedAsset;
+}
+
+// Fetch the immutable corporate security audit ledger log trail from memory channels
+export async function fetchSecurityAuditTrail(): Promise<AuditLogEntry[]> {
+  const response = await fetch('http://localhost:5003/api/asset/security/audit-trail');
+  if (!response.ok) throw new Error('Failed to query immutable security audit ledger records.');
+  return response.json();
 }

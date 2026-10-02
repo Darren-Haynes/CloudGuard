@@ -1,4 +1,5 @@
 using CloudGuard.Api.Data;
+using CloudGuard.Api.Filters; // 👈 ADD THIS LINE
 using CloudGuard.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Register our asynchronous vulnerability simulator engine to run continuously
 builder.Services.AddHostedService<CloudGuard.Api.Services.VulnerabilityWorker>();
 // builder.Services.AddHostedService<VulnerabilityWorker>();
+
+// 👇 Inject the non-blocking thread-safe corporate security audit trail ledger service
+builder.Services.AddSingleton<IAuditLogService, AuditLogService>();
 
 // Establish secure Cross-Origin Resource Sharing rules for the local React interface
 builder.Services.AddCors(options =>

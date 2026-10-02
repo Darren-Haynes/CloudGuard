@@ -1,3 +1,14 @@
+export interface AuditLogEntry {
+  id: string;
+  username: string;
+  userRole: string;
+  action: string;
+  endpointPath: string;
+  payloadData: string;
+  isSuccess: boolean;
+  timestamp: string;
+}
+
 export interface ServerAsset {
   // Foundational Metadata
   id: string;

@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using CloudGuard.Api.Models;
 using CloudGuard.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +11,7 @@ namespace CloudGuard.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AssetController(IAssetService assetService) : ControllerBase
+public class AssetController(IAssetService assetService, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ServerAsset>>> GetAssets()
@@ -16,159 +20,80 @@ public class AssetController(IAssetService assetService) : ControllerBase
         return Ok(assets);
     }
 
-    // 👇 DYNAMIC CSV EXPORT STEAMING ROUTE
-    [HttpGet("export")]
-    public async Task<IActionResult> ExportAuditCsv([FromQuery] string? building, [FromQuery] string? room)
-    {
-        var scopedAssets = await assetService.GetScopedAssetsAsync(building, room);
-
-        var csvBuilder = new StringBuilder();
-
-        // 1. Compile Comma-Separated Headers
-        csvBuilder.AppendLine("Server Name,Operating System,Missing Patches,Security Status,Building,Server Room,Last Audited");
-
-        // 2. Iterate Entities into Escape-Safe CSV Data Lines
-        foreach (var asset in scopedAssets)
-        {
-            csvBuilder.AppendLine(
-                $"\"{asset.ServerName}\"," +
-                $"\"{asset.OperatingSystem}\"," +
-                $"{asset.MissingPatches}," +
-                $"\"{asset.SecurityStatus}\"," +
-                $"\"{asset.BuildingName}\"," +
-                $"\"{asset.ServerRoom}\"," +
-                $"\"{asset.LastAuditedAt:yyyy-MM-dd HH:mm:ss}\""
-            );
-        }
-
-        // 3. Encode the text memory block stream directly into a byte buffer array
-        var csvBytes = Encoding.UTF8.GetBytes(csvBuilder.ToString());
-
-        var cleanFileName = string.IsNullOrWhiteSpace(building)
-            ? "cloudguard_fleet_audit.csv"
-            : $"cloudguard_{building.Replace(" ", "").ToLower()}_{room?.Replace(" ", "").ToLower() ?? "all"}_audit.csv";
-
-        // 4. Return an explicit binary octet-stream file download handle back over the wire
-        return File(csvBytes, "text/csv", cleanFileName);
-    }
-
-    // 👇 CASE-INSENSITIVE DEEP DIVE RETRIEVAL CHANNEL
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ServerAsset>> GetAssetById(Guid id)
     {
         var assets = await assetService.GetAllAssetsAsync();
-
-        // Match GUID values explicitly to bypass network string serialization mismatches
-        var selectedAsset = assets.FirstOrDefault(s => s.Id == id);
-
-        if (selectedAsset == null)
+        var asset = assets.FirstOrDefault(s => s.Id == id);
+        if (asset == null)
         {
-            return NotFound(new { message = $"Server node with ID {id} was not tracked in our active perimeters." });
+            return NotFound(new { message = "Requested hardware perimeter node could not be located." });
         }
-
-        return Ok(selectedAsset);
+        return Ok(asset);
     }
 
-    // 👇 SINGLE-SERVER PLAIN TEXT SYSTEM INTEGRITY REPORT EXPORTER
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportAuditCsv([FromQuery] string? building, [FromQuery] string? room)
+    {
+        var assets = await assetService.GetScopedAssetsAsync(building, room);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Server Name,Operating System,Missing Patches,Security Status");
+
+        foreach (var asset in assets)
+        {
+            sb.AppendLine($"{asset.ServerName},{asset.OperatingSystem},{asset.MissingPatches},{asset.SecurityStatus}");
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+        return File(bytes, "text/csv", $"cloudguard_{building?.ToLower() ?? "all"}_{room?.ToLower() ?? "all"}_audit.csv");
+    }
+
     [HttpGet("{id:guid}/export/text")]
     public async Task<IActionResult> ExportAssetTextReport(Guid id)
     {
         var assets = await assetService.GetAllAssetsAsync();
-
-        // Isolate the single server asset from the resilient database tier using the path GUID
         var asset = assets.FirstOrDefault(s => s.Id == id);
 
-        if (asset == null)
-        {
-            return NotFound(new { message = $"Server node with ID {id} was not tracked in our active perimeters." });
-        }
+        if (asset == null) return NotFound(new { message = "Requested asset node could not be located." });
 
-        var reportBuilder = new StringBuilder();
+        var sb = new StringBuilder();
+        sb.AppendLine("=========================================");
+        sb.AppendLine($"CLOUDGUARD TEXT REPORT: {asset.ServerName.ToUpper()}");
+        sb.AppendLine("=========================================");
+        sb.AppendLine($"Cores: {asset.CpuCoreCount} | RAM: {asset.InstalledRamGb}GB");
+        sb.AppendLine($"IP: {asset.IpAddress} | MAC: {asset.MacAddress}");
+        sb.AppendLine($"Uptime Seconds: {asset.UptimeSeconds}");
+        sb.AppendLine($"CPU Age: {asset.CpuAgeMonths}m | RAM Age: {asset.RamAgeMonths}m | Disk Age: {asset.DiskAgeMonths}m");
+        sb.AppendLine($"Commands: {asset.LastShellCommands}");
 
-        // 1. Header Block
-        reportBuilder.AppendLine("====================================================");
-        reportBuilder.AppendLine(" CLOUDGUARD ENTERPRISE SECURE SYSTEM INTEGRITY REPORT");
-        reportBuilder.AppendLine("====================================================");
-        reportBuilder.AppendLine($"Server Name       : {asset.ServerName}");
-        reportBuilder.AppendLine($"Operating System  : {asset.OperatingSystem}");
-        reportBuilder.AppendLine($"Building / Room   : {asset.BuildingName} / {asset.ServerRoom}");
-        reportBuilder.AppendLine($"Last Audited At   : {asset.LastAuditedAt:yyyy-MM-dd HH:mm:ss} UTC");
-        reportBuilder.AppendLine($"Security Status   : {asset.SecurityStatus}");
-        reportBuilder.AppendLine($"Missing Patches   : {asset.MissingPatches}");
-        reportBuilder.AppendLine("----------------------------------------------------");
-
-        // 2. Hardware Specifications
-        reportBuilder.AppendLine("HARDWARE SPECIFICATIONS");
-        reportBuilder.AppendLine($"  CPU Cores       : {asset.CpuCoreCount}");
-        reportBuilder.AppendLine($"  Installed RAM   : {asset.InstalledRamGb} GB");
-        reportBuilder.AppendLine($"  Free RAM        : {asset.FreeRamGb} GB");
-        reportBuilder.AppendLine($"  IP Address      : {asset.IpAddress}");
-        reportBuilder.AppendLine($"  MAC Address     : {asset.MacAddress}");
-        reportBuilder.AppendLine($"  CPU Age         : {asset.CpuAgeMonths} months");
-        reportBuilder.AppendLine($"  RAM Age         : {asset.RamAgeMonths} months");
-        reportBuilder.AppendLine($"  Disk Age        : {asset.DiskAgeMonths} months");
-        reportBuilder.AppendLine("----------------------------------------------------");
-
-        // 3. Uptime & Load Telemetry
-        reportBuilder.AppendLine("UPTIME & LOAD TELEMETRY");
-        reportBuilder.AppendLine($"  Uptime (seconds): {asset.UptimeSeconds}");
-        reportBuilder.AppendLine($"  Avg CPU Load 24H: {asset.AvgCpuLoad24H}%");
-        reportBuilder.AppendLine($"  Avg CPU Load 1W : {asset.AvgCpuLoad1W}%");
-        reportBuilder.AppendLine($"  Avg CPU Load 1M : {asset.AvgCpuLoad1M}%");
-        reportBuilder.AppendLine($"  Avg RAM Load 24H: {asset.AvgRamLoad24H}%");
-        reportBuilder.AppendLine($"  Avg RAM Load 1W : {asset.AvgRamLoad1W}%");
-        reportBuilder.AppendLine($"  Avg RAM Load 1M : {asset.AvgRamLoad1M}%");
-        reportBuilder.AppendLine("----------------------------------------------------");
-
-        // 4. Last 5 Shell Commands Breakdown
-        reportBuilder.AppendLine("LAST 5 SHELL COMMANDS EXECUTED");
-        var shellCommands = asset.LastShellCommands.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < shellCommands.Length; i++)
-        {
-            reportBuilder.AppendLine($"  [{i + 1}] {shellCommands[i]}");
-        }
-        reportBuilder.AppendLine("====================================================");
-
-        // 5. Encode the string memory block into a UTF-8 byte array
-        var reportBytes = Encoding.UTF8.GetBytes(reportBuilder.ToString());
-
-        var cleanFileName = $"cloudguard_audit_{asset.ServerName}.txt";
-
-        // 6. Return an explicit binary attachment file handle back over the wire
-        return File(reportBytes, "text/plain", cleanFileName);
+        var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+        return File(bytes, "text/plain", $"cloudguard_audit_{asset.ServerName.ToLower()}.txt");
     }
 
-    // 👇 LIVE FULL-STACK REMEDIATION LAYER: ZERO OUT PATCH HOLES
     [HttpPost("{id:guid}/remediate")]
     public async Task<IActionResult> RemediateAssetPatches(Guid id)
     {
         var assets = await assetService.GetAllAssetsAsync();
         var asset = assets.FirstOrDefault(s => s.Id == id);
 
-        if (asset == null)
-        {
-            return NotFound(new { message = "Target hardware node could not be located in active security perimeters." });
-        }
+        if (asset == null) return NotFound(new { message = "Target node not found." });
+        if (asset.MissingPatches == 0) return BadRequest(new { message = "Server is already fully compliant." });
 
-        if (asset.MissingPatches == 0)
-        {
-            return BadRequest(new { message = "System telemetry indicates this asset node is already fully compliant." });
-        }
-
-        // 🛡️ Execute the security patch remediation injection
         asset.MissingPatches = 0;
         asset.SecurityStatus = "Compliant";
         asset.LastAuditedAt = DateTime.UtcNow;
-
-        // Append an audited marker straight to your shell command log array
         asset.LastShellCommands = $"cloudguard-remediate --exec\n{asset.LastShellCommands}";
 
-        // Save mutations back down through your Polly resilience decorator tier
         await assetService.UpdateAssetAsync(asset);
 
-        return Ok(new {
-            message = $"Successfully deployed patch matrices to {asset.ServerName}.",
-            updatedAsset = asset
-        });
+        return Ok(new { message = $"Successfully deployed patch matrices to {asset.ServerName}.", updatedAsset = asset });
+    }
+
+    [HttpGet("security/audit-trail")]
+    public async Task<IActionResult> GetSecurityAuditTrail()
+    {
+        var trail = auditLogService.GetAuditLedgerTrail();
+        return Ok(trail);
     }
 }

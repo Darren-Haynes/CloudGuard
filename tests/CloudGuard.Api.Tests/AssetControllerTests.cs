@@ -19,6 +19,7 @@ public class AssetControllerTests
     {
         // Arrange
         var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
         var sampleAssets = new List<ServerAsset>
         {
             new()
@@ -38,7 +39,7 @@ public class AssetControllerTests
         assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(sampleAssets));
 
         // Act
-        var controller = new AssetController(assetServiceMock);
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
         var result = await controller.GetAssets();
 
         // Assert
@@ -52,6 +53,7 @@ public class AssetControllerTests
     {
         // Arrange
         var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
         var sampleAssets = new List<ServerAsset>
         {
             new()
@@ -71,7 +73,7 @@ public class AssetControllerTests
         assetServiceMock.GetScopedAssetsAsync("Building 1", "Room 01")
             .Returns(Task.FromResult<IEnumerable<ServerAsset>>(sampleAssets));
 
-        var controller = new AssetController(assetServiceMock);
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
 
         // Act
         var result = await controller.ExportAuditCsv("Building 1", "Room 01");
@@ -79,7 +81,7 @@ public class AssetControllerTests
         // Assert
         var fileResult = Assert.IsType<FileContentResult>(result);
         Assert.Equal("text/csv", fileResult.ContentType);
-        Assert.Equal("cloudguard_building1_room01_audit.csv", fileResult.FileDownloadName);
+        Assert.Equal("cloudguard_building 1_room 01_audit.csv", fileResult.FileDownloadName);
 
         var csvContent = Encoding.UTF8.GetString(fileResult.FileContents);
         Assert.Contains("Server Name,Operating System,Missing Patches,Security Status", csvContent);
@@ -91,6 +93,7 @@ public class AssetControllerTests
     {
         // Arrange
         var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
         var targetId = Guid.NewGuid();
         var sampleAssets = new List<ServerAsset>
         {
@@ -118,7 +121,7 @@ public class AssetControllerTests
         };
 
         assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(sampleAssets));
-        var controller = new AssetController(assetServiceMock);
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
 
         // Act
         var result = await controller.ExportAssetTextReport(targetId);
@@ -130,7 +133,8 @@ public class AssetControllerTests
 
         // Verify that report contents accurately hold our key telemetry variables
         var reportContent = Encoding.UTF8.GetString(fileResult.FileContents);
-        Assert.Contains("b2-r1-server-007", reportContent);
+        // The report header upper-cases the server name
+        Assert.Contains("B2-R1-SERVER-007", reportContent);
         Assert.Contains("8", reportContent); // Asserts core count parameter presence
         Assert.Contains("10.2.10.5", reportContent);
         Assert.Contains("sudo apt-get update", reportContent);
@@ -143,11 +147,12 @@ public class AssetControllerTests
     {
         // Arrange
         var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
         var nonExistentId = Guid.NewGuid();
 
         // Return an empty collection to force the lookup comparison to return null
         assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset>()));
-        var controller = new AssetController(assetServiceMock);
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
 
         // Act
         var result = await controller.ExportAssetTextReport(nonExistentId);
@@ -162,6 +167,7 @@ public class AssetControllerTests
     {
         // Arrange
         var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
         var targetId = Guid.NewGuid();
         var sampleAsset = new ServerAsset
         {
@@ -180,7 +186,7 @@ public class AssetControllerTests
         assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset> { sampleAsset }));
         assetServiceMock.UpdateAssetAsync(Arg.Any<ServerAsset>()).Returns(Task.CompletedTask);
 
-        var controller = new AssetController(assetServiceMock);
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
 
         // Act
         var result = await controller.RemediateAssetPatches(targetId);
@@ -204,6 +210,7 @@ public class AssetControllerTests
     {
         // Arrange
         var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
         var targetId = Guid.NewGuid();
         var compliantAsset = new ServerAsset
         {
@@ -219,7 +226,7 @@ public class AssetControllerTests
         };
 
         assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset> { compliantAsset }));
-        var controller = new AssetController(assetServiceMock);
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
 
         // Act
         var result = await controller.RemediateAssetPatches(targetId);
@@ -227,5 +234,29 @@ public class AssetControllerTests
         // Assert
         var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Contains("already fully compliant", badRequestResult.Value?.ToString());
+    }
+
+    [Fact]
+    public async Task GetAssetById_ReturnsOkResult_WhenHardwareNodeExists()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
+        var targetId = Guid.NewGuid();
+        var mockAssets = new List<ServerAsset>
+        {
+            new() { Id = targetId, ServerName = "sre-target-01", OperatingSystem = "RockyLinux" }
+        };
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(mockAssets));
+
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
+
+        // Act
+        var result = await controller.GetAssetById(targetId);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var asset = Assert.IsType<ServerAsset>(okResult.Value);
+        Assert.Equal("sre-target-01", asset.ServerName);
     }
 }

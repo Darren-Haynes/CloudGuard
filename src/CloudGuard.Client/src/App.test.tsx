@@ -1,11 +1,12 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { App } from './App';
-import { fetchServerAssets } from './services/api';
+import { fetchServerAssets, fetchSecurityAuditTrail } from './services/api';
 import type { ServerAsset } from './types';
 
 vi.mock('./services/api', () => ({
   fetchServerAssets: vi.fn(),
+  fetchSecurityAuditTrail: vi.fn(),
 }));
 
 describe('App Root Component Integration', () => {
@@ -19,6 +20,22 @@ describe('App Root Component Integration', () => {
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
       serverRoom: 'Room 01',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      freeRamGb: 16,
+      ipAddress: '10.0.0.1',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 3600,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 20,
+      avgCpuLoad1W: 20,
+      avgCpuLoad1M: 20,
+      avgRamLoad24H: 40,
+      avgRamLoad1W: 40,
+      avgRamLoad1M: 40,
+      lastShellCommands: 'clear'
     },
     {
       id: '2',
@@ -29,6 +46,22 @@ describe('App Root Component Integration', () => {
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
       serverRoom: 'Room 02',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      freeRamGb: 16,
+      ipAddress: '10.0.0.1',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 3600,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 20,
+      avgCpuLoad1W: 20,
+      avgCpuLoad1M: 20,
+      avgRamLoad24H: 40,
+      avgRamLoad1W: 40,
+      avgRamLoad1M: 40,
+      lastShellCommands: 'clear'
     }
   ];
 
@@ -101,6 +134,44 @@ describe('App Root Component Integration', () => {
     expect(screen.getByText('Network conflict or gateway timeout.')).toBeInTheDocument();
   });
 
+  it('swaps the fleet grid for the audit ledger and snaps back via sidebar scope selection', async () => {
+    vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+    vi.mocked(fetchSecurityAuditTrail).mockResolvedValue([
+      {
+        id: 'a1',
+        username: 'darren-sre-lead',
+        userRole: 'SecOps-Admin-Tier3',
+        action: 'POST',
+        endpointPath: '/api/asset/abc/remediate',
+        payloadData: '',
+        isSuccess: true,
+        timestamp: '2026-01-15T10:30:00Z',
+      },
+    ]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('sidebar-audit-ledger'));
+
+    await waitFor(() => {
+      expect(screen.getByText('darren-sre-lead')).toBeInTheDocument();
+    });
+    expect(screen.getByText('SecOps-Admin-Tier3')).toBeInTheDocument();
+    expect(screen.getByText('/api/asset/abc/remediate')).toBeInTheDocument();
+    expect(screen.getByText('Success')).toBeInTheDocument();
+    expect(screen.getByText('2026-01-15 10:30:00 UTC')).toBeInTheDocument();
+    expect(screen.queryByText('gsy-fin-prod-01')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/View Entire Fleet/i));
+
+    expect(screen.getByText('gsy-fin-prod-01')).toBeInTheDocument();
+    expect(screen.queryByTestId('audit-ledger')).not.toBeInTheDocument();
+  });
+
   it('clears active polling timers and updates mounting flags on component unmount', async () => {
     vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
     const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
@@ -121,5 +192,26 @@ describe('App Root Component Integration', () => {
 
     expect(clearIntervalSpy).toHaveBeenCalled();
     clearIntervalSpy.mockRestore();
+  });
+
+  it('gracefully handles audit ledger network failures and displays error boundary text layouts', async () => {
+    // 🔥 ENVIRONMENT DEEP CLEAN: Restore native clocks and fix browser scope leakage!
+    vi.useRealTimers();
+    if (typeof window.clearInterval === 'undefined') {
+      (window as any).clearInterval = () => {};
+    }
+
+    vi.mocked(fetchSecurityAuditTrail).mockRejectedValueOnce(new Error('Audit logging subsystem database connection timed out.'));
+
+    render(<App />);
+
+    // Click the ledger view button in the sidebar nav tree
+    const auditBtn = screen.getByText(/System Audit Ledger/i);
+    fireEvent.click(auditBtn);
+
+    // Verify that the fallback error intercept string accurately mounts onto the screen canvas
+    await waitFor(() => {
+      expect(screen.getByText(/Audit logging subsystem database connection timed out./i)).toBeInTheDocument();
+    }, { timeout: 4000 });
   });
 });
