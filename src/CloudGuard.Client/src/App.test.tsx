@@ -172,6 +172,28 @@ describe('App Root Component Integration', () => {
     expect(screen.queryByTestId('audit-ledger')).not.toBeInTheDocument();
   });
 
+  it('swaps the fleet grid for cluster analytics and snaps back via sidebar scope selection', async () => {
+    vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('sidebar-cluster-analytics'));
+
+    expect(screen.getByTestId('cluster-analytics')).toBeInTheDocument();
+    expect(screen.getByText('Compliance Posture')).toBeInTheDocument();
+    expect(screen.getByText('Building Hardware Allocation')).toBeInTheDocument();
+    expect(screen.queryByText('gsy-fin-prod-01')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/View Entire Fleet/i));
+
+    expect(screen.queryByTestId('cluster-analytics')).not.toBeInTheDocument();
+    expect(screen.getByText('gsy-fin-prod-01')).toBeInTheDocument();
+  });
+
   it('clears active polling timers and updates mounting flags on component unmount', async () => {
     vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
     const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
@@ -213,5 +235,34 @@ describe('App Root Component Integration', () => {
     await waitFor(() => {
       expect(screen.getByText(/Audit logging subsystem database connection timed out./i)).toBeInTheDocument();
     }, { timeout: 4000 });
+  });
+
+  it('swaps the fleet grid for the infographic analytics page and snaps back cleanly on scope reset', async () => {
+    // 🔥 ENVIRONMENT Safety Lock to prevent timer leaks
+    vi.useRealTimers();
+    if (typeof window.clearInterval === 'undefined') {
+      (window as any).clearInterval = () => {};
+    }
+
+    render(<App />);
+
+    // Locate and click the new Cluster Analytics link button inside the sidebar
+    const analyticsBtn = screen.getByText(/Cluster Analytics/i);
+    expect(analyticsBtn).toBeInTheDocument();
+    fireEvent.click(analyticsBtn);
+
+    // Verify that the fleet asset table disappears and the analytics page content renders
+    await waitFor(() => {
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    // Reset view by clicking the master fleet button
+    const fleetBtn = screen.getByText(/View Entire Fleet/i);
+    fireEvent.click(fleetBtn);
+
+    // Verify that the server asset grid mounts cleanly back onto the screen layout
+    await waitFor(() => {
+      expect(screen.getByRole('table')).toBeInTheDocument();
+    });
   });
 });

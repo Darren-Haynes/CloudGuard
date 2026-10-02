@@ -108,6 +108,38 @@ describe('SidebarNav Component', () => {
     expect(onSelectViewSpy).toHaveBeenCalledWith('audit');
   });
 
+  it('invokes onSelectView("analytics") when the Cluster Analytics button is clicked and highlights it when active', () => {
+    const onSelectViewSpy = vi.fn();
+
+    const { rerender } = render(
+      <SidebarNav
+        assets={mockAssets}
+        selectedBuilding={null}
+        selectedRoom={null}
+        onSelectScope={vi.fn()}
+        currentView="fleet"
+        onSelectView={onSelectViewSpy}
+      />
+    );
+
+    fireEvent.click(screen.getByText(/Cluster Analytics/i));
+    expect(onSelectViewSpy).toHaveBeenCalledWith('analytics');
+    expect(screen.getByTestId('sidebar-cluster-analytics')).toHaveStyle({ backgroundColor: 'rgba(0, 0, 0, 0)' });
+
+    rerender(
+      <SidebarNav
+        assets={mockAssets}
+        selectedBuilding={null}
+        selectedRoom={null}
+        onSelectScope={vi.fn()}
+        currentView="analytics"
+        onSelectView={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('sidebar-cluster-analytics')).toHaveStyle({ backgroundColor: 'rgb(79, 70, 229)' });
+  });
+
   it('highlights the audit ledger button only when the audit view is active', () => {
     const { rerender } = render(
       <SidebarNav

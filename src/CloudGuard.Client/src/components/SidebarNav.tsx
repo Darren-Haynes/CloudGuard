@@ -6,8 +6,8 @@ interface SidebarNavProps {
   selectedBuilding: string | null;
   selectedRoom: string | null;
   onSelectScope: (building: string | null, room: string | null) => void;
-  currentView: 'fleet' | 'audit';
-  onSelectView: (view: 'fleet' | 'audit') => void;
+  currentView: 'fleet' | 'audit' | 'analytics';
+  onSelectView: (view: 'fleet' | 'audit' | 'analytics') => void;
 }
 
 export const SidebarNav: React.FC<SidebarNavProps> = ({
@@ -83,6 +83,28 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         <span>🌐 View Entire Fleet</span>
         <span style={{ fontSize: '0.8rem', color: 'var(--text, #9ca3af)', marginLeft: '0.5rem' }}>({assets.length})</span>
         {getStatusIndicator(assets)}
+      </button>
+
+      <button
+        data-testid="sidebar-cluster-analytics"
+        onClick={() => onSelectView('analytics')}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          padding: '0.75rem 1rem',
+          borderRadius: '0.375rem',
+          border: currentView === 'analytics' ? '1px solid #6366f1' : '1px solid var(--border, #2e303a)',
+          backgroundColor: currentView === 'analytics' ? '#4f46e5' : 'transparent',
+          color: currentView === 'analytics' ? '#ffffff' : 'var(--text, #9ca3af)',
+          fontWeight: 600,
+          fontSize: '0.9rem',
+          cursor: 'pointer',
+          textAlign: 'left',
+          transition: 'all 200ms ease',
+        }}
+      >
+        📊 Cluster Analytics
       </button>
 
       <button
