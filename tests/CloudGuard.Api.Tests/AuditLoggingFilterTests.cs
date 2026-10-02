@@ -146,4 +146,65 @@ public class AuditLoggingFilterTests
             entry.UserRole == "Guest-Clearance"
         ));
     }
+
+    // 👇 COVERS THE ALTERNATIVE OKRESULT AND EXCEPTION ISNOTNULL BRANCHES FOR CODECOV
+    [Fact]
+    public async Task OnActionExecutionAsync_EvaluatesSuccessAsTrue_WhenResultIsRawOkResult()
+    {
+        // Arrange
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
+        var filter = new AuditLoggingFilter(auditLogServiceMock);
+
+        var httpContext = new DefaultHttpContext();
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        var actionExecutingContext = new ActionExecutingContext(
+            actionContext,
+            new List<IFilterMetadata>(),
+            new Dictionary<string, object?>(),
+            Substitute.For<Controller>()
+        );
+
+        var actionExecutedContext = new ActionExecutedContext(actionContext, new List<IFilterMetadata>(), Substitute.For<Controller>())
+        {
+            Result = new OkResult() // 🔥 Tests the raw OkResult path branch
+        };
+
+        ActionExecutionDelegate next = () => Task.FromResult(actionExecutedContext);
+
+        // Act
+        await filter.OnActionExecutionAsync(actionExecutingContext, next);
+
+        // Assert
+        auditLogServiceMock.Received(1).LogSecurityAction(Arg.Is<AuditLogEntry>(entry => entry.IsSuccess == true));
+    }
+
+    [Fact]
+    public async Task OnActionExecutionAsync_EvaluatesSuccessAsFalse_WhenActionThrowsException()
+    {
+        // Arrange
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
+        var filter = new AuditLoggingFilter(auditLogServiceMock);
+
+        var httpContext = new DefaultHttpContext();
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        var actionExecutingContext = new ActionExecutingContext(
+            actionContext,
+            new List<IFilterMetadata>(),
+            new Dictionary<string, object?>(),
+            Substitute.For<Controller>()
+        );
+
+        var actionExecutedContext = new ActionExecutedContext(actionContext, new List<IFilterMetadata>(), Substitute.For<Controller>())
+        {
+            Exception = new InvalidOperationException("Simulated perimeter node execution failure.") // 🔥 Tests the Exception != null path branch
+        };
+
+        ActionExecutionDelegate next = () => Task.FromResult(actionExecutedContext);
+
+        // Act
+        await filter.OnActionExecutionAsync(actionExecutingContext, next);
+
+        // Assert
+        auditLogServiceMock.Received(1).LogSecurityAction(Arg.Is<AuditLogEntry>(entry => entry.IsSuccess == false));
+    }
 }
