@@ -47,7 +47,7 @@ describe('ServerDetail Component Suite', () => {
   it('queries dynamic server telemetry and renders the hardware load panels cleanly', async () => {
     vi.mocked(fetchServerAssetById).mockResolvedValue(mockSingleAsset);
 
-    render(<ServerDetail assetId="deep-guid-001" onBack={mockOnBackSpy} />);
+    render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
 
     // Assert initial loading boundary exists
     expect(screen.getByText('Querying deep telemetry matrix...')).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('ServerDetail Component Suite', () => {
   it('triggers the structural parent onBack callback upon click interaction', async () => {
     vi.mocked(fetchServerAssetById).mockResolvedValue(mockSingleAsset);
 
-    render(<ServerDetail assetId="deep-guid-001" onBack={mockOnBackSpy} />);
+    render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
 
     await waitFor(() => {
       expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
@@ -95,7 +95,7 @@ describe('ServerDetail Component Suite', () => {
     // 💡 Simulates an API network exception to trigger line 23 & 33 completely!
     vi.mocked(fetchServerAssetById).mockRejectedValue(new Error('Telemetry link timeout or perimeter offline.'));
 
-    render(<ServerDetail assetId="deep-guid-broken" onBack={mockOnBackSpy} />);
+    render(<ServerDetail assetId="deep-guid-broken" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
 
     // Wait for the asynchronous rejection handling loop to flush state changes to the DOM
     await waitFor(() => {
@@ -125,9 +125,9 @@ describe('ServerDetail Component Suite', () => {
     const originalLocation = window.location;
     // @ts-expect-error -- intentionally deleting to allow a mock replacement
     delete window.location;
-    window.location = { ...originalLocation, href: '' } as Location;
+    (window as unknown as { location: Location }).location = { ...originalLocation, href: '' } as Location;
 
-    render(<ServerDetail assetId="deep-guid-001" onBack={mockOnBackSpy} />);
+    render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
 
     await waitFor(() => {
       expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
@@ -156,7 +156,7 @@ describe('ServerDetail Component Suite', () => {
     expect(printSpy).toHaveBeenCalledTimes(1);
 
     // Restore the native window.location object to avoid leaking state into other test files
-    window.location = originalLocation;
+    (window as unknown as { location: Location }).location = originalLocation;
   });
 
   it('executes the live patch remediation sequence and updates the state posture metrics cleanly', async () => {
@@ -175,7 +175,7 @@ describe('ServerDetail Component Suite', () => {
     vi.mocked(fetchServerAssetById).mockResolvedValue(mockVulnerableAsset);
     vi.mocked(remediateServerPatches).mockResolvedValue(mockRemediatedAsset);
 
-    render(<ServerDetail assetId="deep-guid-001" onBack={mockOnBackSpy} />);
+    render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
 
     await waitFor(() => {
       expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();

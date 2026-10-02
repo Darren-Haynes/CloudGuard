@@ -6,6 +6,8 @@ interface SidebarNavProps {
   selectedBuilding: string | null;
   selectedRoom: string | null;
   onSelectScope: (building: string | null, room: string | null) => void;
+  currentView: 'fleet' | 'audit';
+  onSelectView: (view: 'fleet' | 'audit') => void;
 }
 
 export const SidebarNav: React.FC<SidebarNavProps> = ({
@@ -13,6 +15,8 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   selectedBuilding,
   selectedRoom,
   onSelectScope,
+  currentView,
+  onSelectView,
 }) => {
   const [expandedBuildings, setExpandedBuildings] = useState<Record<string, boolean>>({
     'Building 1': true,
@@ -67,9 +71,9 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           padding: '0.75rem 1rem',
           borderRadius: '0.375rem',
           border: '1px solid var(--border, #2e303a)',
-          backgroundColor: selectedBuilding === null ? 'var(--card-bg, #1f2028)' : 'transparent',
-          color: selectedBuilding === null ? 'var(--text-h, #f3f4f6)' : 'var(--text, #9ca3af)',
-          fontWeight: selectedBuilding === null ? 600 : 500,
+          backgroundColor: currentView === 'fleet' && selectedBuilding === null ? 'var(--card-bg, #1f2028)' : 'transparent',
+          color: currentView === 'fleet' && selectedBuilding === null ? 'var(--text-h, #f3f4f6)' : 'var(--text, #9ca3af)',
+          fontWeight: currentView === 'fleet' && selectedBuilding === null ? 600 : 500,
           fontSize: '0.9rem',
           cursor: 'pointer',
           textAlign: 'left',
@@ -79,6 +83,28 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         <span>🌐 View Entire Fleet</span>
         <span style={{ fontSize: '0.8rem', color: 'var(--text, #9ca3af)', marginLeft: '0.5rem' }}>({assets.length})</span>
         {getStatusIndicator(assets)}
+      </button>
+
+      <button
+        data-testid="sidebar-audit-ledger"
+        onClick={() => onSelectView('audit')}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          padding: '0.75rem 1rem',
+          borderRadius: '0.375rem',
+          border: currentView === 'audit' ? '1px solid #6366f1' : '1px solid var(--border, #2e303a)',
+          backgroundColor: currentView === 'audit' ? '#4f46e5' : 'transparent',
+          color: currentView === 'audit' ? '#ffffff' : 'var(--text, #9ca3af)',
+          fontWeight: 600,
+          fontSize: '0.9rem',
+          cursor: 'pointer',
+          textAlign: 'left',
+          transition: 'all 200ms ease',
+        }}
+      >
+        🛡️ System Audit Ledger
       </button>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

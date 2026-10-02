@@ -1,11 +1,15 @@
 using CloudGuard.Api.Data;
+using CloudGuard.Api.Filters;
 using CloudGuard.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add standard Web API Controller parsing support to the service container
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<AuditLoggingFilter>();
+});
 
 // Configure native OpenAPI v3.1 document generation metrics
 builder.Services.AddOpenApi();
@@ -17,6 +21,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Register our asynchronous vulnerability simulator engine to run continuously
 builder.Services.AddHostedService<CloudGuard.Api.Services.VulnerabilityWorker>();
 // builder.Services.AddHostedService<VulnerabilityWorker>();
+
+// 👇 Inject the non-blocking thread-safe corporate security audit trail ledger service
+builder.Services.AddSingleton<IAuditLogService, AuditLogService>();
 
 // Establish secure Cross-Origin Resource Sharing rules for the local React interface
 builder.Services.AddCors(options =>
@@ -60,3 +67,6 @@ app.MapControllers();
 DbSeeder.SeedData(app);
 
 app.Run();
+
+// Exposes the top-level Program class to WebApplicationFactory<Program> in integration tests
+public partial class Program { }

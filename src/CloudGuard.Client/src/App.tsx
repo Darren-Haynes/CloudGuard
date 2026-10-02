@@ -5,6 +5,7 @@ import { FilterBar } from './components/FilterBar';
 import { MetricCards } from './components/MetricCards';
 import { SidebarNav } from './components/SidebarNav';
 import { ServerDetail } from './components/ServerDetail';
+import { AuditLedger } from './components/AuditLedger';
 import { fetchServerAssets } from './services/api';
 import useDebounce from './hooks/useDebounce';
 
@@ -28,6 +29,9 @@ export const App: React.FC = () => {
 
   // Deep Dive Viewport State
   const [activeServerId, setActiveServerId] = useState<string | null>(null);
+
+  // Main Viewport Tracker (asset fleet grid vs. security audit ledger)
+  const [currentView, setCurrentView] = useState<'fleet' | 'audit'>('fleet');
 
   // Active Accessibility Theme Tracker
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -81,6 +85,12 @@ export const App: React.FC = () => {
 
     // 🔥 SNAP BACK TO DASHBOARD VIEWPORT: Resets the deep dive view instantly on sidebar click!
     setActiveServerId(null);
+    setCurrentView('fleet');
+  };
+
+  const handleSelectView = (view: 'fleet' | 'audit') => {
+    setCurrentView(view);
+    setActiveServerId(null);
   };
 
   const scopedAssets = assets.filter((asset) => {
@@ -104,13 +114,15 @@ export const App: React.FC = () => {
         selectedBuilding={selectedBuilding}
         selectedRoom={selectedRoom}
         onSelectScope={handleSelectScope}
+        currentView={currentView}
+        onSelectView={handleSelectView}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ maxWidth: '1200px', width: '92%', margin: '0 auto', padding: '2rem 1.5rem' }}>
 
           {/* CONTEXTUAL HEADER GATE */}
-          {activeServerId === null && (
+          {currentView === 'fleet' && activeServerId === null && (
             <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', boxSizing: 'border-box' }}>
               <div style={{ textAlign: 'left' }}>
                 <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-h)', margin: '0 0 0.5rem 0', lineHeight: '1.2', letterSpacing: 'normal' }}>
@@ -177,7 +189,9 @@ export const App: React.FC = () => {
           )}
 
           <main>
-            {isLoading ? (
+            {currentView === 'audit' ? (
+              <AuditLedger />
+            ) : isLoading ? (
               <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>Querying telemetry data...</p>
             ) : error !== null ? (
               <div style={{ padding: '1rem 1.25rem', backgroundColor: '#2d1a1a', border: '1px solid #7f1d1d', borderRadius: '0.375rem', color: '#f87171', fontSize: '0.95rem' }}>

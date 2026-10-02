@@ -13,7 +13,23 @@ describe('MetricCards Component', () => {
       securityStatus: 'Compliant',
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
-      serverRoom: 'Room 01'
+      serverRoom: 'Room 01',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      freeRamGb: 16,
+      ipAddress: '10.0.0.1',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 3600,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 20,
+      avgCpuLoad1W: 20,
+      avgCpuLoad1M: 20,
+      avgRamLoad24H: 40,
+      avgRamLoad1W: 40,
+      avgRamLoad1M: 40,
+      lastShellCommands: 'clear'
     },
     {
       id: '2',
@@ -23,7 +39,23 @@ describe('MetricCards Component', () => {
       securityStatus: 'Critical', // This should register as 1 Critical Alert
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
-      serverRoom: 'Room 01'
+      serverRoom: 'Room 01',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      freeRamGb: 16,
+      ipAddress: '10.0.0.1',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 3600,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 20,
+      avgCpuLoad1W: 20,
+      avgCpuLoad1M: 20,
+      avgRamLoad24H: 40,
+      avgRamLoad1W: 40,
+      avgRamLoad1M: 40,
+      lastShellCommands: 'clear'
     },
     {
       id: '3',
@@ -33,7 +65,23 @@ describe('MetricCards Component', () => {
       securityStatus: 'Vulnerable',
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
-      serverRoom: 'Room 01'
+      serverRoom: 'Room 01',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      freeRamGb: 16,
+      ipAddress: '10.0.0.1',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 3600,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 20,
+      avgCpuLoad1W: 20,
+      avgCpuLoad1M: 20,
+      avgRamLoad24H: 40,
+      avgRamLoad1W: 40,
+      avgRamLoad1M: 40,
+      lastShellCommands: 'clear'
     }
   ];
 

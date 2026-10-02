@@ -38,6 +38,11 @@ test.describe('CloudGuard Full-Stack Fleet Remediation E2E Sweep', () => {
       // Click the server cell to route straight into its deep dive panel layout
       await serverNameCell.click();
 
+      // 🛡️ ANTI-404 ROUTING BLOCK VERIFICATION GATEWAY
+      // If the GET id endpoint is missing, this locator hits a blank match and fails the E2E test instantly!
+      const exportButton = page.locator('text=Export Audit Report');
+      await expect(exportButton).toBeVisible({ timeout: 5000 })
+
       // Wait for the Standalone Alert Action Banner button to mount cleanly onto the DOM layer
       const remediateButton = page.locator('text=Execute Active Patch Remediation');
       await expect(remediateButton).toBeVisible();

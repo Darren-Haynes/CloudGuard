@@ -13,7 +13,23 @@ describe('SidebarNav Component', () => {
       securityStatus: 'Critical', // Triggers the Red Status Light
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 1',
-      serverRoom: 'Room 01'
+      serverRoom: 'Room 01',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      freeRamGb: 16,
+      ipAddress: '10.0.0.1',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 3600,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 20,
+      avgCpuLoad1W: 20,
+      avgCpuLoad1M: 20,
+      avgRamLoad24H: 40,
+      avgRamLoad1W: 40,
+      avgRamLoad1M: 40,
+      lastShellCommands: 'clear'
     },
     {
       id: '2',
@@ -23,7 +39,23 @@ describe('SidebarNav Component', () => {
       securityStatus: 'Compliant', // Triggers the Green Status Light
       lastAuditedAt: new Date().toISOString(),
       buildingName: 'Building 2',
-      serverRoom: 'Room 01'
+      serverRoom: 'Room 01',
+      cpuCoreCount: 8,
+      installedRamGb: 32,
+      freeRamGb: 16,
+      ipAddress: '10.0.0.1',
+      macAddress: '00:11:22:33:44:55',
+      uptimeSeconds: 3600,
+      cpuAgeMonths: 6,
+      ramAgeMonths: 6,
+      diskAgeMonths: 6,
+      avgCpuLoad24H: 20,
+      avgCpuLoad1W: 20,
+      avgCpuLoad1M: 20,
+      avgRamLoad24H: 40,
+      avgRamLoad1W: 40,
+      avgRamLoad1M: 40,
+      lastShellCommands: 'clear'
     }
   ];
 
@@ -37,6 +69,8 @@ describe('SidebarNav Component', () => {
         selectedBuilding={null}
         selectedRoom={null}
         onSelectScope={onSelectScopeSpy}
+        currentView="fleet"
+        onSelectView={vi.fn()}
       />
     );
 
@@ -53,5 +87,53 @@ describe('SidebarNav Component', () => {
 
     // Assert: Verify callback fires with specific building/room scope parameters
     expect(onSelectScopeSpy).toHaveBeenCalledWith('Building 1', 'Room 01');
+  });
+
+  it('invokes onSelectView("audit") when the System Audit Ledger button is clicked', () => {
+    const onSelectViewSpy = vi.fn();
+
+    render(
+      <SidebarNav
+        assets={mockAssets}
+        selectedBuilding={null}
+        selectedRoom={null}
+        onSelectScope={vi.fn()}
+        currentView="fleet"
+        onSelectView={onSelectViewSpy}
+      />
+    );
+
+    fireEvent.click(screen.getByText(/System Audit Ledger/i));
+
+    expect(onSelectViewSpy).toHaveBeenCalledWith('audit');
+  });
+
+  it('highlights the audit ledger button only when the audit view is active', () => {
+    const { rerender } = render(
+      <SidebarNav
+        assets={mockAssets}
+        selectedBuilding={null}
+        selectedRoom={null}
+        onSelectScope={vi.fn()}
+        currentView="fleet"
+        onSelectView={vi.fn()}
+      />
+    );
+
+    const button = screen.getByTestId('sidebar-audit-ledger');
+    expect(button).toHaveStyle({ backgroundColor: 'rgba(0, 0, 0, 0)' });
+
+    rerender(
+      <SidebarNav
+        assets={mockAssets}
+        selectedBuilding={null}
+        selectedRoom={null}
+        onSelectScope={vi.fn()}
+        currentView="audit"
+        onSelectView={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('sidebar-audit-ledger')).toHaveStyle({ backgroundColor: 'rgb(79, 70, 229)' });
   });
 });
