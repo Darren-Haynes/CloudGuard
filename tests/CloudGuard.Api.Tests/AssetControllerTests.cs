@@ -292,4 +292,27 @@ public class AssetControllerTests
         Assert.IsType<NotFoundObjectResult>(result);
         await assetServiceMock.DidNotReceive().UpdateAssetAsync(Arg.Any<ServerAsset>());
     }
+
+    // 👇 COVERS THE OPTIONAL BUILDING/ROOM PARAMETER ALTERNATE BRACHIAL STRINGS FOR CODECOV
+    [Fact]
+    public async Task ExportAuditCsv_HandlesNullQueryParameters_ReturnsFileContentResult()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
+
+        // Return an empty array listing to ensure the foreach loop safely completes cleanly
+        assetServiceMock.GetScopedAssetsAsync(null, null)
+            .Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset>()));
+
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
+
+        // Act
+        var result = await controller.ExportAuditCsv(null, null);
+
+        // Assert
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("text/csv", fileResult.ContentType);
+        Assert.Equal("cloudguard_all_all_audit.csv", fileResult.FileDownloadName);
+    }
 }
