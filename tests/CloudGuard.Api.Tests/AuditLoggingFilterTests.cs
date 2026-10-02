@@ -107,4 +107,43 @@ public class AuditLoggingFilterTests
             entry.IsSuccess == true
         ));
     }
+
+    // 👇 COVERS THE ISNULLORWHITESPACE TRUE PATHWAY FOR COLOURED CODECOV BLOCKS
+    [Fact]
+    public async Task OnActionExecutionAsync_FallsBackToAnonymous_WhenIdentityHeadersAreWhitespace()
+    {
+        // Arrange
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
+        var filter = new AuditLoggingFilter(auditLogServiceMock);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = "GET";
+        httpContext.Request.Path = "/api/asset";
+        httpContext.Request.Headers["X-CloudGuard-User"] = "   "; // 🔥 Explicit whitespace string!
+        httpContext.Request.Headers["X-CloudGuard-Role"] = "   ";
+
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        var actionExecutingContext = new ActionExecutingContext(
+            actionContext,
+            new List<IFilterMetadata>(),
+            new Dictionary<string, object?>(),
+            Substitute.For<Controller>()
+        );
+
+        var actionExecutedContext = new ActionExecutedContext(actionContext, new List<IFilterMetadata>(), Substitute.For<Controller>())
+        {
+            Result = new OkObjectResult(new { message = "Success" })
+        };
+
+        ActionExecutionDelegate next = () => Task.FromResult(actionExecutedContext);
+
+        // Act
+        await filter.OnActionExecutionAsync(actionExecutingContext, next);
+
+        // Assert
+        auditLogServiceMock.Received(1).LogSecurityAction(Arg.Is<AuditLogEntry>(entry =>
+            entry.Username == "anonymous-operator" &&
+            entry.UserRole == "Guest-Clearance"
+        ));
+    }
 }
