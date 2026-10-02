@@ -1,12 +1,15 @@
 using CloudGuard.Api.Data;
-using CloudGuard.Api.Filters; // 👈 ADD THIS LINE
+using CloudGuard.Api.Filters;
 using CloudGuard.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add standard Web API Controller parsing support to the service container
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<AuditLoggingFilter>();
+});
 
 // Configure native OpenAPI v3.1 document generation metrics
 builder.Services.AddOpenApi();
@@ -64,3 +67,6 @@ app.MapControllers();
 DbSeeder.SeedData(app);
 
 app.Run();
+
+// Exposes the top-level Program class to WebApplicationFactory<Program> in integration tests
+public partial class Program { }

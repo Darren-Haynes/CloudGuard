@@ -275,4 +275,21 @@ public class AssetControllerTests
         // Assert
         Assert.IsType<NotFoundObjectResult>(result.Result);
     }
+
+    [Fact]
+    public async Task RemediateAssetPatches_ReturnsNotFound_WhenAssetDoesNotExist()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset>()));
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
+
+        // Act
+        var result = await controller.RemediateAssetPatches(Guid.NewGuid());
+
+        // Assert
+        Assert.IsType<NotFoundObjectResult>(result);
+        await assetServiceMock.DidNotReceive().UpdateAssetAsync(Arg.Any<ServerAsset>());
+    }
 }
