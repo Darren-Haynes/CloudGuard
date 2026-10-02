@@ -259,4 +259,20 @@ public class AssetControllerTests
         var asset = Assert.IsType<ServerAsset>(okResult.Value);
         Assert.Equal("sre-target-01", asset.ServerName);
     }
+
+    [Fact]
+    public async Task GetAssetById_ReturnsNotFound_WhenGuidDoesNotExist()
+    {
+        // Arrange
+        var assetServiceMock = Substitute.For<IAssetService>();
+        var auditLogServiceMock = Substitute.For<IAuditLogService>();
+        assetServiceMock.GetAllAssetsAsync().Returns(Task.FromResult<IEnumerable<ServerAsset>>(new List<ServerAsset>()));
+        var controller = new AssetController(assetServiceMock, auditLogServiceMock);
+
+        // Act
+        var result = await controller.GetAssetById(Guid.NewGuid());
+
+        // Assert
+        Assert.IsType<NotFoundObjectResult>(result.Result);
+    }
 }
