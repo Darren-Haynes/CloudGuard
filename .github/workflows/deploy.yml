@@ -44,7 +44,18 @@ jobs:
     - name: Clone Workspace Artifact Sources
       uses: actions/checkout@v4
 
-    - name: Initialize Environment Variables
-      run: echo "Initializing Azure F1 Core Hosting Pipeline Intercept arrays..."
+    - name: Compile Optimized React Production Assets
+      run: |
+        cd src/CloudGuard.Client
+        npm ci
+        npm run build
 
-    # 💡 Configuration scripts for automated cloud pushes will inject cleanly right here!
+    # 📥 SYNC AND DEPLOY REACT STATIC PRODUCTION BUNDLES TO AZURE CDN
+    - name: Deploy Frontend to Azure Static Web Apps
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "src/CloudGuard.Client" # Location of your client application source code
+        output_location: "dist" # The optimized folder containing your compiled HTML/JS/CSS assets
