@@ -75,6 +75,9 @@ jobs:
         CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard --query connectionString --output tsv --subscription "8a924534-6e8e-4208-bb80-f63320da15bf")
         echo "::add-mask::$CONNECTION_STRING"
 
+        # 🔥 DEPLOYMENT ACCELERATOR: Tell Azure to receive pre-compiled binaries natively without syncing bottlenecks!
+        az functionapp config appsettings set --name func-cloudguard-api --resource-group rg-cloudguard --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=false" "WEBSITE_RUN_FROM_PACKAGE=1" --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
       with:
