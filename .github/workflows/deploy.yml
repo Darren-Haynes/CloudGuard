@@ -78,6 +78,7 @@ jobs:
         az functionapp create \
           --name func-cloudguard-api \
           --resource-group rg-cloudguard \
+          --plan plan-cloudguard-flex \
           --flexconsumption-location eastus2 \
           --runtime dotnet-isolated \
           --runtime-version "10" \
