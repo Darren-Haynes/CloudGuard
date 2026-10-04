@@ -49,19 +49,29 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # 🏢 AUTOMATED STORAGE AND RESOURCE RECTIFICATION
+    # 🏢 AUTOMATED STORAGE AND RESOURCE RECTIFICATION WITH HARDWARE LOCKS
     - name: Provision Cheap Cloud Storage Vault and Database Container
       run: |
-        # 1. Ensure the Resource Group exists
+        # 🔥 CONTEXT LOCK: Explicitly bind the active build runner to your subscription GUID
+        az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
+        echo "Ensuring target corporate resource group container exists..."
         az group create --name rg-cloudguard --location eastus2 --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        # 2. 🔑 UNLOCK THE STORAGE PROVIDER GATE FOR THE BUILD SERVER
+        echo "Registering Microsoft.Storage resource namespace..."
         az provider register --namespace Microsoft.Storage --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        # 3. Build the serverless cloud storage vault account using explicit subscription anchoring
+        # ⏳ CLOUD BUFFER ENVELOPE: Pause the runner to let Azure settle the provider registration gates completely
+        echo "Waiting for Azure control plane to propagate storage namespace registrations..."
+        sleep 20
+
+        # Enforce account context alignment once more before building storage resources
+        az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
+        echo "Building serverless storage account data vault..."
         az storage account create --name stcloudguarddata --resource-group rg-cloudguard --location eastus2 --sku Standard_LRS --allow-blob-public-access false --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        # 4. Pull the connection string text line using explicit subscription anchoring
+        echo "Extracting secure database endpoint connection tokens..."
         CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard --query connectionString --output tsv --subscription "8a924534-6e8e-4208-bb80-f63320da15bf")
         echo "::add-mask::$CONNECTION_STRING"
 
