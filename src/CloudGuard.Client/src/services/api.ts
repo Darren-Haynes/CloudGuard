@@ -2,7 +2,7 @@ import type { ServerAsset, AuditLogEntry } from '../types';
 
 
 // 🌐 CONNECT FRONTEND TO LIVE AZURE SERVERLESS BACKEND INFRASTRUCTURE ENGINE
-const BASE_URL = 'https://func-cloudguard-telemetry-api.azurewebsites.net';
+const BASE_URL = 'https://func-cloudguard-telemetry-srv.azurewebsites.net';
 
 // Fetch the entire global fleet array
 export async function fetchServerAssets(): Promise<ServerAsset[]> {
