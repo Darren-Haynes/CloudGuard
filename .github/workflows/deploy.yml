@@ -85,7 +85,6 @@ jobs:
 
         # 🚀 PROVISION PREMIER NATIVE FLEX CONSUMPTION APP PINNED TO EXPLICIT FLEX HARDWARE
         echo "Provisioning modern serverless Flex Consumption app container pinned to the Flex plan..."
-        az functionapp create --name func-cloudguard-telemetry-srv --resource-group rg-cloudguard-prod --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguardprod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
