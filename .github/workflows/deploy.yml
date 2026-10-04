@@ -52,13 +52,15 @@ jobs:
     # 🏢 AUTOMATED STORAGE AND RESOURCE RECTIFICATION
     - name: Provision Cheap Cloud Storage Vault and Database Container
       run: |
-        az group create --name rg-cloudguard --location eastus2
-        az storage account create --name stcloudguarddata --resource-group rg-cloudguard --location eastus2 --sku Standard_LRS --allow-blob-public-access false
-        CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard --query connectionString --output tsv)
-        echo "::add-mask::$CONNECTION_STRING"
+        # 1. Ensure the Resource Group exists
+        az group create --name rg-cloudguard --location eastus2 --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        # Inject the connection string straight to your function app configuration settings dynamically
-        az functionapp config appsettings set --name func-cloudguard-api --resource-group rg-cloudguard --settings "AzureWebJobsStorage=$CONNECTION_STRING"
+        # 2. Build the serverless cloud storage vault account using explicit subscription anchoring
+        az storage account create --name stcloudguarddata --resource-group rg-cloudguard --location eastus2 --sku Standard_LRS --allow-blob-public-access false --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
+        # 3. Pull the connection string text line using explicit subscription anchoring
+        CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard --query connectionString --output tsv --subscription "8a924534-6e8e-4208-bb80-f63320da15bf")
+        echo "::add-mask::$CONNECTION_STRING"
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
