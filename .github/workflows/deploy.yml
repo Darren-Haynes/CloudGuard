@@ -1,12 +1,12 @@
-name: CloudGuard Full-Stack Fleet Telemetry Azure Deployment Pipeline
+name: CloudGuard Full-Stack Telemetry Azure Serverless Deployment Pipeline
 
 on:
   push:
-    branches: [ main ] # Triggers automatically on every squash-merge event to main
+    branches: [ main, feat/serverless-backend ]
 
 jobs:
   validate-and-test:
-    name: ⚙️ Automated Quality Assurance and Contract Verification Pass
+    name: ⚙️ Full-Stack Quality Assurance Pass
     runs-on: ubuntu-latest
     steps:
     - name: Clone Repository Workspace Tree
@@ -37,25 +37,34 @@ jobs:
         npm run test
 
   deploy-infrastructure:
-    name: 🚀 Cloud Production Ship Event (Azure Free Tier Synchronization)
-    needs: validate-and-test # Enforces that cloud distribution only occurs if tests pass completely green!
+    name: 🚀 Cloud Production Ship Event
+    needs: validate-and-test
     runs-on: ubuntu-latest
     steps:
     - name: Clone Workspace Artifact Sources
       uses: actions/checkout@v4
 
-    - name: Compile Optimized React Production Assets
-      run: |
-        cd src/CloudGuard.Client
-        npm ci
-        npm run build
+    - name: Log in to Azure via Federated Credentials
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # 📥 SYNC AND DEPLOY REACT STATIC PRODUCTION BUNDLES TO AZURE CDN
-    - name: Deploy Frontend to Azure Static Web Apps
+    # 🏢 AUTOMATED STORAGE AND RESOURCE RECTIFICATION
+    - name: Provision Cheap Cloud Storage Vault and Database Container
+      run: |
+        az group create --name rg-cloudguard --location eastus2
+        az storage account create --name stcloudguarddata --resource-group rg-cloudguard --location eastus2 --sku Standard_LRS --allow-blob-public-access false
+        CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard --query connectionString --output tsv)
+        echo "::add-mask::$CONNECTION_STRING"
+
+        # Inject the connection string straight to your function app configuration settings dynamically
+        az functionapp config appsettings set --name func-cloudguard-api --resource-group rg-cloudguard --settings "AzureWebJobsStorage=$CONNECTION_STRING"
+
+    - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
       with:
         azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         action: "upload"
-        app_location: "src/CloudGuard.Client" # Location of your client application source code
-        output_location: "dist" # The optimized folder containing your compiled HTML/JS/CSS assets
+        app_location: "src/CloudGuard.Client"
+        output_location: "dist"
