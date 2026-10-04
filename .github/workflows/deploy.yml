@@ -72,10 +72,9 @@ jobs:
         CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard --query connectionString --output tsv --subscription "8a924534-6e8e-4208-bb80-f63320da15bf")
         echo "::add-mask::$CONNECTION_STRING"
         az storage container create --name deployments --connection-string "$CONNECTION_STRING"
-
         # 🚀 PROVISION PREMIER MODERNISED FLEX CONSUMPTION FUNCTION CONTAINER APP
         echo "Provisioning modern serverless Flex Consumption app container..."
-        az functionapp create --name func-cloudguard-api --resource-group rg-cloudguard --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version "10" --storage-account stcloudguarddata --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+        az functionapp create --name func-cloudguard-telemetry --resource-group rg-cloudguard --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version "10" --storage-account stcloudguarddata --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
@@ -108,7 +107,7 @@ jobs:
 
         echo "Injecting ZIP archive packet directly to the serverless Flex container gates..."
         az functionapp deployment source config-zip \
-          --name func-cloudguard-api \
+          --name func-cloudguard-telemetry \
           --resource-group rg-cloudguard \
           --src functions_deploy.zip \
           --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
