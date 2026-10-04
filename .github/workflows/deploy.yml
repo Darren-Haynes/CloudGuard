@@ -103,6 +103,9 @@ jobs:
       run: |
         az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
+        echo "Forcing strict .NET 10 serverless worker engine target version..."
+        az functionapp config set --name func-cloudguard-api --resource-group rg-cloudguard --net-framework-version "v10.0" --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
         echo "Creating raw deployment ZIP packet..."
         cd src/CloudGuard.Functions/publish_output
         zip -r ../../../../functions_deploy.zip .
