@@ -73,9 +73,26 @@ jobs:
         echo "::add-mask::$CONNECTION_STRING"
         az storage container create --name deployments --connection-string "$CONNECTION_STRING"
 
-        # 🚀 PROVISION PREMIER NATIVE FLEX CONSUMPTION APP (FRESH NAMESPACE)
-        echo "Provisioning modern serverless Flex Consumption app container..."
-        az functionapp create --name func-cloudguard-production --resource-group rg-cloudguard --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version 10.0 --storage-account stcloudguarddata --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+        # 🟢 PROVISION EXPLICIT FLEX CONSUMPTION APP SERVICE PLAN INFRASTRUCTURE STAMP
+        echo "Provisioning dedicated serverless Flex Consumption service plan container..."
+        az resource create \
+          --resource-group rg-cloudguard \
+          --resource-type "Microsoft.Web/serverfarms" \
+          --name "plan-cloudguard-flex" \
+          --is-full-object \
+          --properties '{"location":"eastus2","sku":{"name":"FC1","tier":"FlexConsumption"},"properties":{"reserved":true}}' \
+          --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
+        # 🚀 PROVISION PREMIER NATIVE FLEX CONSUMPTION APP PINNED TO EXPLICIT FLEX HARDWARE
+        echo "Provisioning modern serverless Flex Consumption app container pinned to the Flex plan..."
+        az functionapp create \
+          --name func-cloudguard-production \
+          --resource-group rg-cloudguard \
+          --plan plan-cloudguard-flex \
+          --runtime dotnet-isolated \
+          --runtime-version 10.0 \
+          --storage-account stcloudguarddata \
+          --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
