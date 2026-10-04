@@ -1,6 +1,6 @@
 import type { ServerAsset, AuditLogEntry } from '../types';
 
-const BASE_URL = 'http://localhost:5003/api/asset';
+const BASE_URL = 'https://proud-bush-02f29940f.1.azurestaticapps.net/';
 
 // Fetch the entire global fleet array
 export async function fetchServerAssets(): Promise<ServerAsset[]> {
