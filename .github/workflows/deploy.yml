@@ -98,9 +98,19 @@ jobs:
         cd src/CloudGuard.Functions
         dotnet publish --configuration Release --output ./publish_output
 
-    - name: Deploy Backend Package to Azure Functions Core
-      uses: Azure/functions-action@v1
-      with:
-        app-name: 'func-cloudguard-api'
-        package: './src/CloudGuard.Functions/publish_output'
-        slot-name: 'production'
+    # 🟢 DIRECT ZIP DEPLOYMENT REMEDIATION MATRIX: Bypasses the wrapper bugs natively via the Azure CLI
+    - name: Deploy Backend Package via Native Azure CLI Core
+      run: |
+        az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
+        echo "Creating raw deployment ZIP packet..."
+        cd src/CloudGuard.Functions/publish_output
+        zip -r ../../../../functions_deploy.zip .
+        cd ../../../../
+
+        echo "Injecting ZIP archive packet directly to the serverless container gates..."
+        az functionapp deployment source config-zip \
+          --name func-cloudguard-api \
+          --resource-group rg-cloudguard \
+          --src functions_deploy.zip \
+          --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
