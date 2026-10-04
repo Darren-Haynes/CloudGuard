@@ -85,11 +85,11 @@ jobs:
 
         # 🚀 PROVISION PREMIER NATIVE FLEX CONSUMPTION APP IF IT DOES NOT EXIST
         echo "Validating full-stack serverless hosting availability..."
-        if ! az functionapp show --name func-cloudguard-telemetry-srv --resource-group rg-cloudguard-prod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf" > /dev/null 2>&1; then
+        if ! az functionapp show --name func-cloudguard-telemetry-prd --resource-group rg-cloudguard-prod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf" > /dev/null 2>&1; then
           echo "No active container found in the prod group. Allocating fresh serverless framework slot..."
-          az functionapp create --name func-cloudguard-telemetry-srv --resource-group rg-cloudguard-prod --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguardprod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+          az functionapp create --name func-cloudguard-telemetry-prd --resource-group rg-cloudguard-prod --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguardprod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
         else
-          echo "Serverless container instance func-cloudguard-telemetry-srv is verified active in rg-cloudguard-prod. Proceeding to compilation."
+          echo "Serverless container instance func-cloudguard-telemetry-prd is verified active in rg-cloudguard-prod. Proceeding to compilation."
         fi
 
     - name: Compile and Ship React Frontend Production Bundle
@@ -123,7 +123,7 @@ jobs:
 
         echo "Injecting ZIP archive packet directly to the serverless Flex container gates..."
         az functionapp deployment source config-zip \
-          --name func-cloudguard-telemetry-srv \
+          --name func-cloudguard-telemetry-prd \
           --resource-group rg-cloudguard-prod \
           --src functions_deploy.zip \
           --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
