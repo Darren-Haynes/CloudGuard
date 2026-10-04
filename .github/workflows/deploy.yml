@@ -85,7 +85,7 @@ jobs:
 
         # 🚀 PROVISION PREMIER NATIVE FLEX CONSUMPTION APP PINNED TO EXPLICIT FLEX HARDWARE
         echo "Provisioning modern serverless Flex Consumption app container pinned to the Flex plan..."
-        az functionapp create --name func-cloudguard-telemetry-api --resource-group rg-cloudguard --plan plan-cloudguard-flex --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguarddata --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+        az functionapp create --name func-cloudguard-telemetry-srv --resource-group rg-cloudguard --plan plan-cloudguard-flex --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguarddata --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
@@ -118,7 +118,7 @@ jobs:
 
         echo "Injecting ZIP archive packet directly to the serverless Flex container gates..."
         az functionapp deployment source config-zip \
-          --name func-cloudguard-telemetry-api \
+          --name func-cloudguard-telemetry-srv \
           --resource-group rg-cloudguard \
           --src functions_deploy.zip \
           --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
