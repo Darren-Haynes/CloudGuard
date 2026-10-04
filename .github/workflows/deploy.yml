@@ -66,10 +66,10 @@ jobs:
         az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
         echo "Building serverless storage account data vault..."
-        az storage account create --name stcloudguarddata --resource-group rg-cloudguard-prod --location eastus2 --sku Standard_LRS --allow-blob-public-access false --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+        az storage account create --name stcloudguardprod --resource-group rg-cloudguard-prod --location eastus2 --sku Standard_LRS --allow-blob-public-access false --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
         echo "Ensuring secure storage deployment container bucket exists..."
-        CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard-prod --query connectionString --output tsv --subscription "8a924534-6e8e-4208-bb80-f63320da15bf")
+        CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguardprod --resource-group rg-cloudguard-prod --query connectionString --output tsv --subscription "8a924534-6e8e-4208-bb80-f63320da15bf")
         echo "::add-mask::$CONNECTION_STRING"
         az storage container create --name deployments --connection-string "$CONNECTION_STRING"
 
@@ -85,7 +85,7 @@ jobs:
 
         # 🚀 PROVISION PREMIER NATIVE FLEX CONSUMPTION APP PINNED TO EXPLICIT FLEX HARDWARE
         echo "Provisioning modern serverless Flex Consumption app container pinned to the Flex plan..."
-        az functionapp create --name func-cloudguard-telemetry-srv --resource-group rg-cloudguard-prod --plan plan-cloudguard-flex --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguarddata --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+        az functionapp create --name func-cloudguard-telemetry-srv --resource-group rg-cloudguard-prod --plan plan-cloudguard-flex --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguardprod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
