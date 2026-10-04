@@ -75,7 +75,7 @@ jobs:
 
         # 🚀 PROVISION NATIVE FLEX CONSUMPTION FUNCTION CONTAINER APP
         echo "Provisioning modern serverless Flex Consumption app container..."
-        az functionapp create --name func-cloudguard-metrics --resource-group rg-cloudguard --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version "10" --storage-account stcloudguarddata --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+        az functionapp create --name func-cloudguard-metrics --resource-group rg-cloudguard --plan plan-cloudguard-flex --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
