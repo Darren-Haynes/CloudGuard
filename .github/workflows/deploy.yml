@@ -49,7 +49,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # 🏢 AUTOMATED STORAGE AND RESOURCE RECTIFICATION WITH HARDWARE LOCKS
+    # 🏢 AUTOMATED STORAGE AND RESOURCE RECTIFICATION WITH FLEX ENGINES
     - name: Provision Cheap Cloud Storage Vault and Database Container
       run: |
         az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
@@ -61,22 +61,28 @@ jobs:
         az provider register --namespace Microsoft.Storage --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
         echo "Waiting for Azure control plane to propagate storage namespace registrations..."
-        sleep 20
+        sleep 15
 
         az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
         echo "Building serverless storage account data vault..."
         az storage account create --name stcloudguarddata --resource-group rg-cloudguard --location eastus2 --sku Standard_LRS --allow-blob-public-access false --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        echo "Ensuring free-tier serverless Function App container exists..."
-        az functionapp create --name func-cloudguard-api --resource-group rg-cloudguard --consumption-plan-location eastus2 --runtime dotnet-isolated --functions-version 4 --storage-account stcloudguarddata --os-type Linux --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
-
-        echo "Extracting secure database endpoint connection tokens..."
+        echo "Ensuring secure storage deployment container bucket exists..."
         CONNECTION_STRING=$(az storage account show-connection-string --name stcloudguarddata --resource-group rg-cloudguard --query connectionString --output tsv --subscription "8a924534-6e8e-4208-bb80-f63320da15bf")
         echo "::add-mask::$CONNECTION_STRING"
+        az storage container create --name deployments --connection-string "$CONNECTION_STRING"
 
-        # 🔥 DEPLOYMENT ACCELERATOR: Tell Azure to receive pre-compiled binaries natively without syncing bottlenecks!
-        az functionapp config appsettings set --name func-cloudguard-api --resource-group rg-cloudguard --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=false" "WEBSITE_RUN_FROM_PACKAGE=1" --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+        # 🚀 PROVISION PREMIER MODERNISED FLEX CONSUMPTION FUNCTION CONTAINER APP
+        echo "Provisioning modern serverless Flex Consumption app container..."
+        az functionapp create \
+          --name func-cloudguard-api \
+          --resource-group rg-cloudguard \
+          --flexconsumption-location eastus2 \
+          --runtime dotnet-isolated \
+          --runtime-version "10" \
+          --storage-account stcloudguarddata \
+          --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
     - name: Compile and Ship React Frontend Production Bundle
       uses: Azure/static-web-apps-deploy@v1
@@ -87,7 +93,7 @@ jobs:
         app_location: "src/CloudGuard.Client"
         output_location: "dist"
 
-    # 🛰️ COMPILE AND PUBLISH .NET 10 BACKEND TO AZURE SERVERLESS
+    # 🛰️ COMPILE AND PUBLISH .NET 10 ISOLATED FUNCTIONS BACKEND TO FLEX CONSUMPTION
     - name: Setup .NET Core SDK for Functions Compilation
       uses: actions/setup-dotnet@v4
       with:
@@ -98,20 +104,16 @@ jobs:
         cd src/CloudGuard.Functions
         dotnet publish --configuration Release --output ./publish_output
 
-    # 🟢 DIRECT ZIP DEPLOYMENT REMEDIATION MATRIX: Bypasses the wrapper bugs natively via the Azure CLI
     - name: Deploy Backend Package via Native Azure CLI Core
       run: |
         az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
-
-        echo "Forcing strict .NET 10 serverless worker engine target version..."
-        az functionapp config set --name func-cloudguard-api --resource-group rg-cloudguard --net-framework-version "v10.0" --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
         echo "Creating raw deployment ZIP packet..."
         cd src/CloudGuard.Functions/publish_output
         zip -r ../../../../functions_deploy.zip .
         cd ../../../../
 
-        echo "Injecting ZIP archive packet directly to the serverless container gates..."
+        echo "Injecting ZIP archive packet directly to the serverless Flex container gates..."
         az functionapp deployment source config-zip \
           --name func-cloudguard-api \
           --resource-group rg-cloudguard \
