@@ -57,14 +57,6 @@ jobs:
         echo "Ensuring target corporate resource group container exists..."
         az group create --name rg-cloudguard-prod --location eastus2 --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        echo "Registering Microsoft.Storage resource namespace..."
-        az provider register --namespace Microsoft.Storage --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
-
-        echo "Waiting for Azure control plane to propagate storage namespace registrations..."
-        sleep 15
-
-        az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
-
         echo "Building serverless storage account data vault..."
         az storage account create --name stcloudguardprod --resource-group rg-cloudguard-prod --location eastus2 --sku Standard_LRS --allow-blob-public-access false --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
@@ -73,21 +65,11 @@ jobs:
         echo "::add-mask::$CONNECTION_STRING"
         az storage container create --name deployments --connection-string "$CONNECTION_STRING"
 
-        # 🟢 PROVISION EXPLICIT FLEX CONSUMPTION APP SERVICE PLAN INFRASTRUCTURE STAMP
-        echo "Provisioning dedicated serverless Flex Consumption service plan container..."
-        az resource create \
-          --resource-group rg-cloudguard-prod \
-          --resource-type "Microsoft.Web/serverfarms" \
-          --name "plan-cloudguard-flex" \
-          --is-full-object \
-          --properties '{"location":"eastus2","sku":{"name":"FC1","tier":"FlexConsumption"},"properties":{"reserved":true}}' \
-          --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
-
         # 🚀 PROVISION PREMIER NATIVE FLEX CONSUMPTION APP IF IT DOES NOT EXIST
         echo "Validating full-stack serverless hosting availability..."
         if ! az functionapp show --name func-cloudguard-telemetry-prd --resource-group rg-cloudguard-prod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf" > /dev/null 2>&1; then
           echo "No active container found in the prod group. Allocating fresh serverless framework slot..."
-          az functionapp create --name func-cloudguard-telemetry-prd --resource-group rg-cloudguard-prod --flexconsumption-location eastus2 --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguardprod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+          az functionapp create --name func-cloudguard-telemetry-prd --resource-group rg-cloudguard-prod --plan plan-cloudguard-flex --runtime dotnet-isolated --runtime-version 10 --storage-account stcloudguardprod --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
         else
           echo "Serverless container instance func-cloudguard-telemetry-prd is verified active in rg-cloudguard-prod. Proceeding to compilation."
         fi
@@ -100,6 +82,7 @@ jobs:
         action: "upload"
         app_location: "src/CloudGuard.Client"
         output_location: "dist"
+        resource_group: "rg-cloudguard-prod"
 
     # 🛰️ COMPILE AND PUBLISH .NET 10 ISOLATED FUNCTIONS BACKEND TO FLEX CONSUMPTION
     - name: Setup .NET Core SDK for Functions Compilation
@@ -112,18 +95,13 @@ jobs:
         cd src/CloudGuard.Functions
         dotnet publish --configuration Release --output ./publish_output
 
-    # 🟢 DIRECT ZIP DEPLOYMENT REMEDIATION MATRIX: Captures all hidden framework dot-directories cleanly
     - name: Deploy Backend Package via Native Azure CLI Core
       run: |
         az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        echo "Creating raw deployment ZIP packet including hidden framework metadata..."
+        echo "Creating raw deployment ZIP packet..."
         cd src/CloudGuard.Functions/publish_output
-
-        # 🔥 The critical fix: use '*' and '.[a-zA-Z]*' to guarantee hidden dot-directories like .azurefunctions/ are packaged!
-        zip -r ../../../../functions_deploy.zip . -x ".*" ".[a-zA-Z]*"
-        zip -g -r ../../../../functions_deploy.zip .azurefunctions
-
+        zip -r ../../../../functions_deploy.zip .
         cd ../../../../
 
         echo "Injecting ZIP archive packet directly to the serverless Flex container gates..."

@@ -5,7 +5,6 @@ const BASE_URL = 'https://func-cloudguard-telemetry-prd.azurewebsites.net';
 
 // Fetch the entire global fleet array
 export async function fetchServerAssets(): Promise<ServerAsset[]> {
-  // 🛰️ Targets the true serverless trigger sub-route
   const response = await fetch(`${BASE_URL}/asset`);
   if (!response.ok) {
     throw new Error(`Security service connection failed: ${response.statusText}`);
