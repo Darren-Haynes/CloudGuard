@@ -112,13 +112,18 @@ jobs:
         cd src/CloudGuard.Functions
         dotnet publish --configuration Release --output ./publish_output
 
+    # 🟢 DIRECT ZIP DEPLOYMENT REMEDIATION MATRIX: Captures all hidden framework dot-directories cleanly
     - name: Deploy Backend Package via Native Azure CLI Core
       run: |
         az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
 
-        echo "Creating raw deployment ZIP packet..."
+        echo "Creating raw deployment ZIP packet including hidden framework metadata..."
         cd src/CloudGuard.Functions/publish_output
-        zip -r ../../../../functions_deploy.zip .
+
+        # 🔥 The critical fix: use '*' and '.[a-zA-Z]*' to guarantee hidden dot-directories like .azurefunctions/ are packaged!
+        zip -r ../../../../functions_deploy.zip . -x ".*" ".[a-zA-Z]*"
+        zip -g -r ../../../../functions_deploy.zip .azurefunctions
+
         cd ../../../../
 
         echo "Injecting ZIP archive packet directly to the serverless Flex container gates..."
