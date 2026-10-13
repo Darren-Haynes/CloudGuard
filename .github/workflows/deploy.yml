@@ -2,7 +2,7 @@ name: CloudGuard Full-Stack Fleet Telemetry Azure Deployment Pipeline
 
 on:
   push:
-    branches: [ main ] # Triggers automatically on every squash-merge event to main
+    branches: [ main, feat/serverless-telemetry ] # 🔥 Added your active feature branch so the pipeline triggers immediately on your push!
 
 jobs:
   validate-and-test:
@@ -44,6 +44,11 @@ jobs:
     - name: Clone Workspace Artifact Sources
       uses: actions/checkout@v4
 
+    - name: Log in to Azure via Federated Credentials
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
     - name: Compile Optimized React Production Assets
       run: |
         cd src/CloudGuard.Client
@@ -59,3 +64,30 @@ jobs:
         action: "upload"
         app_location: "src/CloudGuard.Client" # Location of your client application source code
         output_location: "dist" # The optimized folder containing your compiled HTML/JS/CSS assets
+
+    # 🛰️ COMPILE AND PUBLISH .NET 10 ISOLATED FUNCTIONS BACKEND TO FLEX CONSUMPTION
+    - name: Setup .NET Core SDK for Functions Compilation
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Build and Publish Serverless Backend Package
+      run: |
+        cd src/CloudGuard.Functions
+        dotnet publish --configuration Release --output ./publish_output
+
+    - name: Deploy Backend Package via Native Azure CLI Core
+      run: |
+        az account set --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
+
+        echo "Creating raw deployment ZIP packet..."
+        cd src/CloudGuard.Functions/publish_output
+        zip -r ../../../../functions_deploy.zip .
+        cd ../../../../
+
+        echo "Injecting ZIP archive packet directly to the serverless Flex container gates..."
+        az functionapp deployment source config-zip \
+          --name func-cloudguard-telemetry-prd \
+          --resource-group rg-cloudguard-prod \
+          --src functions_deploy.zip \
+          --subscription "8a924534-6e8e-4208-bb80-f63320da15bf"
