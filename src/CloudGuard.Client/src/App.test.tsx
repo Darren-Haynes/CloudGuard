@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { App } from './App';
-import { fetchServerAssets, fetchSecurityAuditTrail, fetchServerAssetById, remediateServerPatches } from './services/api';
+import { fetchServerAssets, fetchSecurityAuditTrail, fetchServerAssetById, remediateServerPatches, downloadAuditCsv } from './services/api';
 import { ASSET_POLL_INTERVAL_MS, ERROR_RETRY_INTERVAL_MS } from './config';
 import { resetTabVisibility, setTabVisibility } from './test/tabVisibility';
 import type { ServerAsset } from './types';
@@ -9,6 +9,7 @@ import type { ServerAsset } from './types';
 vi.mock('./services/api', () => ({
   fetchServerAssets: vi.fn(),
   fetchSecurityAuditTrail: vi.fn(),
+  downloadAuditCsv: vi.fn(),
   fetchServerAssetById: vi.fn(),
   remediateServerPatches: vi.fn(),
 }));
@@ -269,6 +270,74 @@ describe('App Root Component Integration', () => {
     await waitFor(() => {
       expect(screen.getByRole('table')).toBeInTheDocument();
     });
+  });
+
+  it('downloads the whole-fleet audit report through the authenticated API helper', async () => {
+    vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+    vi.mocked(downloadAuditCsv).mockResolvedValue(undefined);
+
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('📥 Download Audit Report'));
+
+    await waitFor(() => expect(downloadAuditCsv).toHaveBeenCalledWith(null, null));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('scopes the audit report download to the selected building and room', async () => {
+    vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+    vi.mocked(downloadAuditCsv).mockResolvedValue(undefined);
+
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
+    });
+
+    // Building 1 starts expanded, so its rooms can be picked straight away.
+    fireEvent.click(screen.getByText(/Room 01/));
+    fireEvent.click(screen.getByText('📥 Download Audit Report'));
+    await waitFor(() => expect(downloadAuditCsv).toHaveBeenLastCalledWith('Building 1', 'Room 01'));
+
+    fireEvent.click(screen.getByTestId('sidebar-building-building1'));
+    fireEvent.click(screen.getByText('📥 Download Audit Report'));
+    await waitFor(() => expect(downloadAuditCsv).toHaveBeenLastCalledWith('Building 1', null));
+  });
+
+  it('shows a readable error when the audit report download fails, and clears it on retry', async () => {
+    vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+    vi.mocked(downloadAuditCsv)
+      .mockRejectedValueOnce(new Error('The audit report could not be downloaded. Please try again.'))
+      .mockResolvedValueOnce(undefined);
+
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('📥 Download Audit Report'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The audit report could not be downloaded');
+    // The dashboard itself is still there.
+    expect(screen.getByText('gsy-fin-prod-01')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('📥 Download Audit Report'));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
+  it('uses a generic message when the audit report download fails with something that is not an Error', async () => {
+    vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+    vi.mocked(downloadAuditCsv).mockRejectedValue('boom');
+
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('📥 Download Audit Report'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The audit report could not be downloaded.');
   });
 
   // These run on a fake clock and reset every mock they use, so they do not depend on what

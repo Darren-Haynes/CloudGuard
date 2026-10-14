@@ -46,6 +46,23 @@ describe('API location config', () => {
     expect(API_ORIGIN).toBe('https://api.cloudguard.test');
     expect(ASSET_API_URL).toBe('https://api.cloudguard.test/api/asset');
   });
+
+  it('does not require a login unless VITE_REQUIRE_LOGIN is exactly "true"', async () => {
+    vi.stubEnv('VITE_REQUIRE_LOGIN', undefined);
+    expect((await loadConfig()).LOGIN_REQUIRED).toBe(false);
+
+    vi.stubEnv('VITE_REQUIRE_LOGIN', '');
+    expect((await loadConfig()).LOGIN_REQUIRED).toBe(false);
+
+    vi.stubEnv('VITE_REQUIRE_LOGIN', 'false');
+    expect((await loadConfig()).LOGIN_REQUIRED).toBe(false);
+
+    vi.stubEnv('VITE_REQUIRE_LOGIN', '1');
+    expect((await loadConfig()).LOGIN_REQUIRED).toBe(false);
+
+    vi.stubEnv('VITE_REQUIRE_LOGIN', 'true');
+    expect((await loadConfig()).LOGIN_REQUIRED).toBe(true);
+  });
 });
 
 // Every refresh is a billable call to the Function App, so the cadence is a deliberate choice

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { ServerAsset } from '../types';
-import { fetchServerAssetById, remediateServerPatches } from '../services/api';
-import { ASSET_API_URL } from '../config';
+import { fetchServerAssetById, remediateServerPatches, downloadAssetTextReport } from '../services/api';
 
 interface ServerDetailProps {
   assetId: string;
@@ -19,6 +18,7 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
   const [error, setError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [isRemediating, setIsRemediating] = useState<boolean>(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadAsset() {
@@ -148,9 +148,14 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
                 }}
               >
                 <div
-                  onClick={() => {
-                    window.location.href = `${ASSET_API_URL}/${assetId}/export/text`;
+                  onClick={async () => {
                     setIsDropdownOpen(false);
+                    setExportError(null);
+                    try {
+                      await downloadAssetTextReport(assetId, asset.serverName);
+                    } catch (err) {
+                      setExportError(err instanceof Error ? err.message : 'The server report could not be downloaded.');
+                    }
                   }}
                   style={{
                     padding: '0.75rem 1rem',
@@ -176,6 +181,28 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
                 >
                   🖨️ Print Secure PDF (.pdf)
                 </div>
+              </div>
+            )}
+
+            {exportError !== null && (
+              <div
+                role="alert"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 0.5rem)',
+                  right: 0,
+                  width: '260px',
+                  padding: '0.625rem 0.75rem',
+                  backgroundColor: 'var(--status-critical-bg, #2d1a1a)',
+                  border: '1px solid var(--status-critical-border, #7f1d1d)',
+                  borderRadius: '0.375rem',
+                  color: 'var(--status-critical-text, #f87171)',
+                  fontSize: '0.8rem',
+                  zIndex: 50,
+                  textAlign: 'left',
+                }}
+              >
+                {exportError}
               </div>
             )}
           </div>
