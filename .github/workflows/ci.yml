@@ -8,7 +8,9 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned on purpose: GitHub starts moving the ubuntu-latest label to Ubuntu 26.04 on
+    # 2026-10-19, and this pipeline has not run there. deploy.yml is pinned the same way.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
