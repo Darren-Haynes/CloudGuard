@@ -1,8 +1,12 @@
 # CloudGuard - test, build and deploy to Azure.
 #
-# Deploys into resources that already exist and never creates any. The one setting it
-# changes is the Function App's CORS list: it adds the Static Web App's address so
-# browsers accept the API's responses (step "Allow the Static Web App origin (CORS)").
+# Deploys into resources that already exist and never creates any. Besides uploading the
+# code it changes two things on the Function App:
+#   - It removes the WEBSITE_RUN_FROM_PACKAGE app setting when present, because Flex
+#     Consumption refuses to deploy while it exists (step "Remove the app setting Flex
+#     Consumption rejects").
+#   - It adds the Static Web App's address to the CORS list so browsers accept the API's
+#     responses (step "Allow the Static Web App origin (CORS)").
 #   Resource group   rg-cloudguard-prod
 #   Function app     func-cloudguard-telemetry-prd  (.NET 10 isolated, Flex Consumption)
 #   Static Web App   swa-cloudguard-prod-ui
@@ -174,6 +178,47 @@ jobs:
 
       - name: Select Azure subscription
         run: az account set --subscription "$SUBSCRIPTION_ID"
+
+      # Flex Consumption refuses to deploy while the WEBSITE_RUN_FROM_PACKAGE app setting
+      # exists: the platform fails the upload with "InvalidAppSettingsException: The app
+      # settings WEBSITE_RUN_FROM_PACKAGE are not supported with this SKU". Flex does not use
+      # it (the app runs from the platform's own package container) and nothing in this
+      # repository sets it, so it can only have been added by hand. Remove it when present and
+      # check it is gone; do nothing otherwise. Setting values are never printed to the log.
+      - name: Remove the app setting Flex Consumption rejects
+        run: |
+          set -euo pipefail
+          setting="WEBSITE_RUN_FROM_PACKAGE"
+
+          find_setting() {
+            az functionapp config appsettings list \
+              --name "$FUNCTION_APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?name=='$setting'].name" \
+              --output tsv
+          }
+
+          # Assigned to a variable so that a failing `az` call stops the step instead of
+          # being mistaken for "not set".
+          present="$(find_setting)"
+          if [ -z "$present" ]; then
+            echo "$FUNCTION_APP_NAME has no $setting app setting; nothing to remove."
+            exit 0
+          fi
+
+          echo "::warning::Removing the $setting app setting from $FUNCTION_APP_NAME: Flex Consumption rejects deployments while it is set."
+          az functionapp config appsettings delete \
+            --name "$FUNCTION_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --setting-names "$setting" \
+            --output none
+
+          remaining="$(find_setting)"
+          if [ -n "$remaining" ]; then
+            echo "::error::$setting is still set on $FUNCTION_APP_NAME after the delete."
+            exit 1
+          fi
+          echo "Removed $setting from $FUNCTION_APP_NAME."
 
       # On Flex Consumption the CLI polls the host after upload; the step timeout stops an
       # unhealthy app from hanging the job indefinitely.
