@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ServerAsset } from '../types';
 import { fetchServerAssetById, remediateServerPatches } from '../services/api';
+import { ASSET_API_URL } from '../config';
 
 interface ServerDetailProps {
   assetId: string;
@@ -144,7 +145,7 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
               >
                 <div
                   onClick={() => {
-                    window.location.href = `http://localhost:5003/api/asset/${assetId}/export/text`;
+                    window.location.href = `${ASSET_API_URL}/${assetId}/export/text`;
                     setIsDropdownOpen(false);
                   }}
                   style={{

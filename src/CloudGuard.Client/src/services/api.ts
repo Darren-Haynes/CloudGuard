@@ -1,10 +1,9 @@
 import type { ServerAsset, AuditLogEntry } from '../types';
-
-const BASE_URL = 'http://localhost:5003/api/asset';
+import { ASSET_API_URL } from '../config';
 
 // Fetch the entire global fleet array
 export async function fetchServerAssets(): Promise<ServerAsset[]> {
-  const response = await fetch(BASE_URL);
+  const response = await fetch(ASSET_API_URL);
   if (!response.ok) {
     throw new Error(`Security service connection failed: ${response.statusText}`);
   }
@@ -14,7 +13,7 @@ export async function fetchServerAssets(): Promise<ServerAsset[]> {
 // FETCH A SINGLE DENSE INFRASTRUCTURE PROFILE BY UNIQUE ID
 export async function fetchServerAssetById(id: string): Promise<ServerAsset> {
   const cleanId = id.toString().trim().toLowerCase();
-  const response = await fetch(`http://localhost:5003/api/asset/${cleanId}`);
+  const response = await fetch(`${ASSET_API_URL}/${cleanId}`);
   if (!response.ok) {
     if (response.status === 404) {
       throw new Error('Requested hardware perimeter node could not be located.');
@@ -28,7 +27,7 @@ export async function fetchServerAssetById(id: string): Promise<ServerAsset> {
 export async function remediateServerPatches(id: string): Promise<ServerAsset> {
   const cleanId = id.toString().trim().toLowerCase();
 
-  const response = await fetch(`http://localhost:5003/api/asset/${cleanId}/remediate`, {
+  const response = await fetch(`${ASSET_API_URL}/${cleanId}/remediate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -49,7 +48,7 @@ export async function remediateServerPatches(id: string): Promise<ServerAsset> {
 
 // Fetch the immutable corporate security audit ledger log trail from memory channels
 export async function fetchSecurityAuditTrail(): Promise<AuditLogEntry[]> {
-  const response = await fetch('http://localhost:5003/api/asset/security/audit-trail');
+  const response = await fetch(`${ASSET_API_URL}/security/audit-trail`);
   if (!response.ok) throw new Error('Failed to query immutable security audit ledger records.');
   return response.json();
 }
