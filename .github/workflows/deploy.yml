@@ -1,61 +1,493 @@
-name: CloudGuard Full-Stack Fleet Telemetry Azure Deployment Pipeline
+# CloudGuard - test, build and deploy to Azure.
+#
+# Deploys into resources that already exist and never creates any. Besides uploading the
+# code it changes two things on the Function App:
+#   - It removes the WEBSITE_RUN_FROM_PACKAGE app setting when present, because Flex
+#     Consumption refuses to deploy while it exists (step "Remove the app setting Flex
+#     Consumption rejects").
+#   - It adds the Static Web App's address to the CORS list so browsers accept the API's
+#     responses (step "Allow the Static Web App origin (CORS)").
+#   Resource group   rg-cloudguard-prod
+#   Function app     func-cloudguard-telemetry-prd  (.NET 10 isolated, Flex Consumption)
+#   Static Web App   swa-cloudguard-prod-ui
+#   Storage account  stcloudguardprod               (Flex package container, used by the platform)
+#
+# Flow:  test --> deploy-functions --> deploy-frontend
+#   The API goes first and has to pass its smoke test, so the UI only goes live once the
+#   API it calls is known to work. The UI is built with VITE_API_BASE_URL set to the
+#   Function App's address: the Free-tier Static Web App has no linked backend, so the
+#   browser calls the Function App directly.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   AZURE_CREDENTIALS                Service-principal JSON for azure/login; used only by the
+#                                    Functions deploy. Needs rights on the Function App and
+#                                    read access to the Static Web App.
+#   AZURE_STATIC_WEB_APPS_API_TOKEN  Deployment token of swa-cloudguard-prod-ui; used only by
+#                                    the frontend deploy. Resetting the token in Azure
+#                                    invalidates this copy, so update the secret when you do.
+#
+# Production branch: main. Every push to main runs the tests and, when they pass, deploys.
+# Pull requests are checked by ci.yml only and never deploy. To change the production
+# branch, update on.push.branches, the `if:` guard on both deploy jobs and
+# `production_branch`, then confirm with `az staticwebapp environment list` that the deploy
+# updated the `default` (production) environment and not a preview one.
+#
+# Runner image: ubuntu-24.04 is pinned on purpose. GitHub is moving the ubuntu-latest label
+# to Ubuntu 26.04 in a rollout starting 2026-10-19, and this pipeline has not run there.
+
+name: CloudGuard Azure Deployment Pipeline
 
 on:
   push:
-    branches: [ main ] # Triggers automatically on every squash-merge event to main
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudguard-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: 10.0.x
+  NODE_VERSION: 24.x
+  SOLUTION_FILE: CloudGuard.slnx
+  CLIENT_DIR: src/CloudGuard.Client
+  FUNCTIONS_PROJECT: src/CloudGuard.Functions/CloudGuard_Functions.csproj
+  SUBSCRIPTION_ID: 8a924534-6e8e-4208-bb80-f63320da15bf
+  RESOURCE_GROUP: rg-cloudguard-prod
+  FUNCTION_APP_NAME: func-cloudguard-telemetry-prd
+  STATIC_WEB_APP_NAME: swa-cloudguard-prod-ui
 
 jobs:
-  validate-and-test:
-    name: ⚙️ Automated Quality Assurance and Contract Verification Pass
-    runs-on: ubuntu-latest
+  test:
+    name: Test (.NET and React)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-    - name: Clone Repository Workspace Tree
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Initialize .NET SDK Environment
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '10.0.x'
+      - name: Verify repository layout
+        run: |
+          set -euo pipefail
+          missing=0
+          for file in \
+            "$SOLUTION_FILE" \
+            "$FUNCTIONS_PROJECT" \
+            "$CLIENT_DIR/package.json" \
+            "$CLIENT_DIR/package-lock.json"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Expected file not found: $file"
+              missing=1
+            fi
+          done
+          exit "$missing"
 
-    - name: Initialize Node.js Lifecycle Runtime
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24.x'
-        cache: 'npm'
-        cache-dependency-path: src/CloudGuard.Client/package-lock.json
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Execute Full Backend Validation Suite
-      run: |
-        dotnet restore
-        dotnet test --configuration Release /p:CollectCoverage=true
+      - name: Restore .NET dependencies
+        run: dotnet restore "$SOLUTION_FILE"
 
-    - name: Execute Client Linting and Compilation Matrix
-      run: |
-        cd src/CloudGuard.Client
-        npm ci
-        npx tsc --noEmit
-        npm run test
+      - name: Build solution
+        run: dotnet build "$SOLUTION_FILE" --configuration Release --no-restore
 
-  deploy-infrastructure:
-    name: 🚀 Cloud Production Ship Event (Azure Free Tier Synchronization)
-    needs: validate-and-test # Enforces that cloud distribution only occurs if tests pass completely green!
-    runs-on: ubuntu-latest
+      # The Functions project is not part of the solution, so compile it here to catch
+      # build errors before either deploy job starts.
+      - name: Compile Functions project
+        run: dotnet build "$FUNCTIONS_PROJECT" --configuration Release
+
+      - name: Run .NET tests
+        run: dotnet test "$SOLUTION_FILE" --configuration Release --no-build
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.CLIENT_DIR }}/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: npm ci
+
+      # `tsc -b` follows the project references; a bare `tsc --noEmit` checks nothing here.
+      - name: Type-check client
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: npx tsc -b
+
+      - name: Run React tests
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: npm run test
+
+  deploy-functions:
+    name: Deploy .NET Functions to Function App
+    needs: test
+    # Deploy only from the production branch (also guards manual runs started elsewhere).
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
-    - name: Clone Workspace Artifact Sources
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Compile Optimized React Production Assets
-      run: |
-        cd src/CloudGuard.Client
-        npm ci
-        npm run build
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    # 📥 SYNC AND DEPLOY REACT STATIC PRODUCTION BUNDLES TO AZURE CDN
-    - name: Deploy Frontend to Azure Static Web Apps
-      uses: Azure/static-web-apps-deploy@v1
-      with:
-        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        action: "upload"
-        app_location: "src/CloudGuard.Client" # Location of your client application source code
-        output_location: "dist" # The optimized folder containing your compiled HTML/JS/CSS assets
+      - name: Publish Functions project
+        run: dotnet publish "$FUNCTIONS_PROJECT" --configuration Release --output "$RUNNER_TEMP/functions-publish"
+
+      - name: Package deployment ZIP
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/functions-publish"
+          zip -qr "$RUNNER_TEMP/functions.zip" .
+
+      - name: Verify deployment ZIP
+        run: |
+          set -euo pipefail
+          entries="$(unzip -Z1 "$RUNNER_TEMP/functions.zip")"
+          if ! grep -qx 'host.json' <<< "$entries"; then
+            echo "::error::host.json is not at the root of the ZIP; the Functions host would not start."
+            exit 1
+          fi
+          if ! grep -q '^\.azurefunctions/' <<< "$entries"; then
+            echo "::error::.azurefunctions/ is missing from the ZIP; the isolated worker was not published correctly."
+            exit 1
+          fi
+          if grep -qx 'local.settings.json' <<< "$entries"; then
+            echo "::error::local.settings.json must not be shipped to Azure."
+            exit 1
+          fi
+          echo "ZIP OK: $(wc -l <<< "$entries") entries, $(du -h "$RUNNER_TEMP/functions.zip" | cut -f1)"
+
+      - name: Check AZURE_CREDENTIALS is set
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          if [ -z "$AZURE_CREDENTIALS" ]; then
+            echo "::error::Repository secret AZURE_CREDENTIALS is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Select Azure subscription
+        run: az account set --subscription "$SUBSCRIPTION_ID"
+
+      # Flex Consumption refuses to deploy while the WEBSITE_RUN_FROM_PACKAGE app setting
+      # exists: the platform fails the upload with "InvalidAppSettingsException: The app
+      # settings WEBSITE_RUN_FROM_PACKAGE are not supported with this SKU". Flex does not use
+      # it (the app runs from the platform's own package container) and nothing in this
+      # repository sets it, so it can only have been added by hand. Remove it when present and
+      # check it is gone; do nothing otherwise. Setting values are never printed to the log.
+      - name: Remove the app setting Flex Consumption rejects
+        run: |
+          set -euo pipefail
+          setting="WEBSITE_RUN_FROM_PACKAGE"
+
+          find_setting() {
+            az functionapp config appsettings list \
+              --name "$FUNCTION_APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?name=='$setting'].name" \
+              --output tsv
+          }
+
+          # Assigned to a variable so that a failing `az` call stops the step instead of
+          # being mistaken for "not set".
+          present="$(find_setting)"
+          if [ -z "$present" ]; then
+            echo "$FUNCTION_APP_NAME has no $setting app setting; nothing to remove."
+            exit 0
+          fi
+
+          echo "::warning::Removing the $setting app setting from $FUNCTION_APP_NAME: Flex Consumption rejects deployments while it is set."
+          az functionapp config appsettings delete \
+            --name "$FUNCTION_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --setting-names "$setting" \
+            --output none
+
+          remaining="$(find_setting)"
+          if [ -n "$remaining" ]; then
+            echo "::error::$setting is still set on $FUNCTION_APP_NAME after the delete."
+            exit 1
+          fi
+          echo "Removed $setting from $FUNCTION_APP_NAME."
+
+      # On Flex Consumption the CLI polls the host after upload; the step timeout stops an
+      # unhealthy app from hanging the job indefinitely.
+      - name: Deploy ZIP to Function App
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          az functionapp deployment source config-zip \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --src "$RUNNER_TEMP/functions.zip"
+
+      # The React app is served from the Static Web App's own domain and calls this
+      # Function App directly, so a browser only accepts the responses when that exact
+      # origin is in the Function App's CORS list. Azure ignores a "*" entry as soon as
+      # other origins are listed, so it has to be there by name. This only ever adds the one
+      # origin (nothing is removed) and does nothing when it is already listed, or when the
+      # list is only "*" (everything is already allowed, and adding a name would switch that off).
+      - name: Allow the Static Web App origin (CORS)
+        run: |
+          set -euo pipefail
+          host="$(az staticwebapp show \
+            --name "$STATIC_WEB_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query defaultHostname \
+            --output tsv)"
+          if [ -z "$host" ]; then
+            echo "::error::Could not read the default hostname of Static Web App $STATIC_WEB_APP_NAME."
+            exit 1
+          fi
+          origin="https://$host"
+
+          cors="$(az functionapp cors show \
+            --name "$FUNCTION_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --output json)"
+          if jq -e --arg origin "$origin" '(.allowedOrigins // []) | any(.[]; . == $origin) or . == ["*"]' <<< "$cors" > /dev/null; then
+            echo "CORS on $FUNCTION_APP_NAME already allows $origin"
+          else
+            az functionapp cors add \
+              --name "$FUNCTION_APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --allowed-origins "$origin" \
+              --output none
+            echo "Added $origin to the CORS allowed origins of $FUNCTION_APP_NAME"
+          fi
+
+          echo "SWA_ORIGIN=$origin" >> "$GITHUB_ENV"
+
+      # Read-only checks against the live API: GET requests and one CORS preflight, nothing is
+      # modified. The whole battery is retried because a Flex Consumption app cold-starts and
+      # the previous version can keep answering for a short while after the upload.
+      - name: Smoke test the live API
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+
+          : "${SWA_ORIGIN:?SWA_ORIGIN was not set by the CORS step}"
+          api="https://${FUNCTION_APP_NAME}.azurewebsites.net/api/asset"
+          work="$RUNNER_TEMP/smoke"
+          mkdir -p "$work"
+          unknown_id="ffffffff-ffff-4fff-8fff-ffffffffffff"
+          reply=""
+
+          # call <url> [curl options...]: sends the request, keeps the body and headers
+          # under $work, and sets $reply to "<status> <content-type>".
+          call() {
+            local url="$1"
+            shift
+            reply="$(curl --silent --show-error --max-time 60 \
+              --dump-header "$work/headers" --output "$work/body" \
+              --write-out '%{http_code} %{content_type}' "$@" "$url" 2>&1)" \
+              || reply="000 (request failed: $reply)"
+          }
+
+          # expect <what> <status> <content-type prefix>: the last reply has to match.
+          expect() {
+            case "$reply" in
+              "$2 $3"*) echo "  ok: $1 ($reply)" ;;
+              *)
+                echo "  FAIL: $1 - expected '$2 $3', got '$reply'"
+                return 1
+                ;;
+            esac
+          }
+
+          # body_ok <what> <jq filter> [jq options...]: the last body has to satisfy the filter.
+          body_ok() {
+            local what="$1" filter="$2"
+            shift 2
+            if ! jq -e "$@" "$filter" "$work/body" > /dev/null 2>&1; then
+              echo "  FAIL: $what - unexpected response body"
+              return 1
+            fi
+          }
+
+          # allows_origin: the last reply has to allow the Static Web App origin (by name or "*").
+          allows_origin() {
+            awk -F': ' -v origin="$SWA_ORIGIN" '
+              tolower($1) == "access-control-allow-origin" { sub(/\r$/, "", $2); if ($2 == origin || $2 == "*") found = 1 }
+              END { exit !found }' "$work/headers"
+          }
+
+          check_api() {
+            local id name building room total scoped rows header
+
+            call "$api"
+            expect "list assets" 200 application/json || return 1
+            total="$(jq 'length' "$work/body")" || return 1
+            if [ "$total" -lt 1 ]; then
+              echo "  FAIL: list assets - the list is empty"
+              return 1
+            fi
+            id="$(jq -r '.[0].id' "$work/body")" || return 1
+            name="$(jq -r '.[0].serverName' "$work/body")" || return 1
+            building="$(jq -r '.[0].buildingName' "$work/body")" || return 1
+            room="$(jq -r '.[0].serverRoom' "$work/body")" || return 1
+            scoped="$(jq --arg b "$building" --arg r "$room" \
+              '[.[] | select(.buildingName == $b and .serverRoom == $r)] | length' "$work/body")" || return 1
+
+            call "$api/$id"
+            expect "get asset by id" 200 application/json || return 1
+            # $id in the jq filter is a jq variable (set with --arg), not a shell one.
+            # shellcheck disable=SC2016
+            body_ok "get asset by id" '.id == $id' --arg id "$id" || return 1
+
+            # A missing route also answers 404, but without a JSON message.
+            call "$api/$unknown_id"
+            expect "get unknown asset" 404 application/json || return 1
+            body_ok "get unknown asset" '.message | type == "string"' || return 1
+
+            call "$api/export"
+            expect "export everything as CSV" 200 text/csv || return 1
+            header="$(sed -n '1{s/\r$//;p;q;}' "$work/body")"
+            if [ "$header" != "Server Name,Operating System,Missing Patches,Security Status" ]; then
+              echo "  FAIL: export everything as CSV - unexpected header row '$header'"
+              return 1
+            fi
+            rows=$(( $(wc -l < "$work/body") - 1 ))
+            if [ "$rows" -ne "$total" ]; then
+              echo "  FAIL: export everything as CSV - $rows rows for $total assets"
+              return 1
+            fi
+
+            call "$api/export" --get --data-urlencode "building=$building" --data-urlencode "room=$room"
+            expect "export CSV scoped to $building / $room" 200 text/csv || return 1
+            rows=$(( $(wc -l < "$work/body") - 1 ))
+            if [ "$rows" -ne "$scoped" ]; then
+              echo "  FAIL: export scoped CSV - $rows rows, expected $scoped"
+              return 1
+            fi
+
+            call "$api/$id/export/text"
+            expect "export text report" 200 text/plain || return 1
+            if ! grep -qiF "CLOUDGUARD TEXT REPORT: $name" "$work/body"; then
+              echo "  FAIL: export text report - report for $name not found in the body"
+              return 1
+            fi
+
+            call "$api/$unknown_id/export/text"
+            expect "export text report for unknown asset" 404 application/json || return 1
+            body_ok "export text report for unknown asset" '.message | type == "string"' || return 1
+
+            call "$api/security/audit-trail" --header "Origin: $SWA_ORIGIN"
+            expect "read audit trail" 200 application/json || return 1
+            body_ok "read audit trail" 'type == "array"' || return 1
+            if ! allows_origin; then
+              echo "  FAIL: CORS - responses do not allow the origin $SWA_ORIGIN"
+              return 1
+            fi
+            echo "  ok: CORS allows $SWA_ORIGIN"
+
+            # The remediate button sends a POST with custom headers, so browsers ask first.
+            call "$api/$id/remediate" --request OPTIONS \
+              --header "Origin: $SWA_ORIGIN" \
+              --header "Access-Control-Request-Method: POST" \
+              --header "Access-Control-Request-Headers: content-type,x-cloudguard-user,x-cloudguard-role"
+            expect "CORS preflight for remediate" 204 "" || return 1
+            if ! allows_origin; then
+              echo "  FAIL: CORS preflight - the origin $SWA_ORIGIN is not allowed"
+              return 1
+            fi
+          }
+
+          attempts=8
+          for attempt in $(seq 1 "$attempts"); do
+            echo "Smoke test attempt $attempt of $attempts against $api"
+            if check_api; then
+              echo "Smoke test passed."
+              exit 0
+            fi
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "Not ready yet (cold start, or the new version is still taking over); retrying in 15 seconds."
+              sleep 15
+            fi
+          done
+          echo "::error::Smoke test failed after $attempts attempts; see the FAIL lines above."
+          exit 1
+
+  deploy-frontend:
+    name: Deploy React UI to Static Web App
+    # Runs after the API is deployed and smoke-tested, because the UI is built to call it.
+    needs: [test, deploy-functions]
+    # Deploy only from the production branch (also guards manual runs started elsewhere).
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.CLIENT_DIR }}/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: npm ci
+
+      # Vite bakes VITE_API_BASE_URL into the bundle; without it the app would call
+      # http://localhost:5003 from visitors' browsers.
+      - name: Build client
+        working-directory: ${{ env.CLIENT_DIR }}
+        env:
+          VITE_API_BASE_URL: https://${{ env.FUNCTION_APP_NAME }}.azurewebsites.net
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          set -euo pipefail
+          if [ ! -f "$CLIENT_DIR/dist/index.html" ]; then
+            echo "::error::$CLIENT_DIR/dist/index.html was not produced by the client build."
+            exit 1
+          fi
+          if ! grep -rqF -- "https://${FUNCTION_APP_NAME}.azurewebsites.net" "$CLIENT_DIR/dist"; then
+            echo "::error::The built client does not contain https://${FUNCTION_APP_NAME}.azurewebsites.net, so VITE_API_BASE_URL was not applied."
+            exit 1
+          fi
+
+      - name: Check AZURE_STATIC_WEB_APPS_API_TOKEN is set
+        env:
+          SWA_DEPLOYMENT_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        run: |
+          if [ -z "$SWA_DEPLOYMENT_TOKEN" ]; then
+            echo "::error::Repository secret AZURE_STATIC_WEB_APPS_API_TOKEN is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      # The token identifies swa-cloudguard-prod-ui, so no Azure login is needed here and this
+      # job never holds the broader service-principal credentials.
+      #
+      # The action is pinned to the head of its v1 branch. The v1 tag is a 2021 snapshot that
+      # does not declare production_branch or skip_api_build, which GitHub reports as
+      # "Unexpected input(s)"; the Dockerfile, entrypoint and `runs` block are identical.
+      - name: Deploy to Static Web App
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1 branch head
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: ${{ env.CLIENT_DIR }}/dist
+          output_location: ""
+          skip_app_build: true
+          skip_api_build: true
+          production_branch: main

@@ -8,6 +8,7 @@ import { ServerDetail } from './components/ServerDetail';
 import { AuditLedger } from './components/AuditLedger';
 import { ClusterAnalytics } from './components/ClusterAnalytics';
 import { fetchServerAssets } from './services/api';
+import { ASSET_API_URL } from './config';
 import useDebounce from './hooks/useDebounce';
 
 export const App: React.FC = () => {
@@ -159,7 +160,7 @@ export const App: React.FC = () => {
 
                 <button
                   onClick={() => {
-                    const baseUrl = 'http://localhost:5003/api/asset/export';
+                    const baseUrl = `${ASSET_API_URL}/export`;
                     const params = new URLSearchParams();
                     if (selectedBuilding) params.append('building', selectedBuilding);
                     if (selectedRoom) params.append('room', selectedRoom);

@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "CloudGuard_Functions": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7042",
+      "launchBrowser": false
+    }
+  }
+}
