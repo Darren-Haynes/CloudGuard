@@ -26,3 +26,10 @@ export const AUDIT_POLL_INTERVAL_MS = 60 * 1000;
 // How long to wait before trying again after a failed load, so one failure (for example a
 // cold start that times out) does not leave an error on screen for a whole interval.
 export const ERROR_RETRY_INTERVAL_MS = 30 * 1000;
+
+// Whether the app asks for the shared password before it shows anything.
+//
+// The deployed site is built with VITE_REQUIRE_LOGIN=true. It is off for local development,
+// where the local API is open. Even when it is off, a 401 from the API still brings up the lock
+// screen, so pointing a local build at a protected API works too.
+export const LOGIN_REQUIRED: boolean = import.meta.env.VITE_REQUIRE_LOGIN === 'true';

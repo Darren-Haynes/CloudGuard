@@ -18,6 +18,12 @@
 #   Function App's address: the Free-tier Static Web App has no linked backend, so the
 #   browser calls the Function App directly.
 #
+# The site is locked behind a shared password. The Function App needs two app settings,
+# CLOUDGUARD_ACCESS_PASSWORD and CLOUDGUARD_TOKEN_SIGNING_KEY. They are never stored in this
+# repository or in GitHub: scripts/set-access-secrets.sh sets them in Azure. Run it BEFORE the
+# first deploy of the lock. The deploy stops early, before touching the live API, when either
+# setting is missing, and the smoke test fails if the API is not usable with them.
+#
 # Required repository secrets (Settings > Secrets and variables > Actions):
 #   AZURE_CREDENTIALS                Service-principal JSON for azure/login; used only by the
 #                                    Functions deploy. Needs rights on the Function App and
@@ -184,6 +190,26 @@ jobs:
       - name: Select Azure subscription
         run: az account set --subscription "$SUBSCRIPTION_ID"
 
+      # The lock needs a password and a signing key in the Function App's settings. Without them
+      # every request is answered 503, so fail now, while the previous version is still live,
+      # rather than after it has been replaced. Only the names are read; no value is printed.
+      - name: Check the access-lock app settings exist
+        run: |
+          set -euo pipefail
+          missing=0
+          for setting in CLOUDGUARD_ACCESS_PASSWORD CLOUDGUARD_TOKEN_SIGNING_KEY; do
+            found="$(az functionapp config appsettings list \
+              --name "$FUNCTION_APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?name=='$setting'].name" \
+              --output tsv)"
+            if [ -z "$found" ]; then
+              echo "::error::App setting $setting is not set on $FUNCTION_APP_NAME. Run scripts/set-access-secrets.sh, then re-run this workflow."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       # Flex Consumption refuses to deploy while the WEBSITE_RUN_FROM_PACKAGE app setting
       # exists: the platform fails the upload with "InvalidAppSettingsException: The app
       # settings WEBSITE_RUN_FROM_PACKAGE are not supported with this SKU". Flex does not use
@@ -273,16 +299,23 @@ jobs:
 
           echo "SWA_ORIGIN=$origin" >> "$GITHUB_ENV"
 
-      # Read-only checks against the live API: GET requests and one CORS preflight, nothing is
-      # modified. The whole battery is retried because a Flex Consumption app cold-starts and
-      # the previous version can keep answering for a short while after the upload.
+      # Checks against the live API that need no password: GET requests, one POST that sends a
+      # wrong password, and CORS preflights. Nothing is modified and nothing is written to the
+      # audit ledger (rejected requests and failed logins are not recorded). The whole battery
+      # is retried because a Flex Consumption app cold-starts and the previous version can keep
+      # answering for a short while after the upload.
+      #
+      # This cannot prove that a correct password returns data, because the pipeline does not
+      # hold the password. It does prove the lock is on and the routes behind it exist: an
+      # unknown route answers 404, so a 401 means the route is real and gated.
       - name: Smoke test the live API
         timeout-minutes: 10
         run: |
           set -euo pipefail
 
           : "${SWA_ORIGIN:?SWA_ORIGIN was not set by the CORS step}"
-          api="https://${FUNCTION_APP_NAME}.azurewebsites.net/api/asset"
+          base="https://${FUNCTION_APP_NAME}.azurewebsites.net/api"
+          api="$base/asset"
           work="$RUNNER_TEMP/smoke"
           mkdir -p "$work"
           unknown_id="ffffffff-ffff-4fff-8fff-ffffffffffff"
@@ -303,6 +336,10 @@ jobs:
           expect() {
             case "$reply" in
               "$2 $3"*) echo "  ok: $1 ($reply)" ;;
+              503*)
+                echo "  FAIL: $1 - got '$reply'. If this keeps happening the app settings CLOUDGUARD_ACCESS_PASSWORD / CLOUDGUARD_TOKEN_SIGNING_KEY are missing or the key is under 32 characters; run scripts/set-access-secrets.sh."
+                return 1
+                ;;
               *)
                 echo "  FAIL: $1 - expected '$2 $3', got '$reply'"
                 return 1
@@ -327,83 +364,75 @@ jobs:
               END { exit !found }' "$work/headers"
           }
 
-          check_api() {
-            local id name building room total scoped rows header
+          # allows_header <name>: the last reply has to list the request header as allowed.
+          allows_header() {
+            awk -F': ' -v name="$1" '
+              tolower($1) == "access-control-allow-headers" {
+                sub(/\r$/, "", $2)
+                n = split(tolower($2), parts, /, */)
+                for (i = 1; i <= n; i++) if (parts[i] == name || parts[i] == "*") found = 1
+              }
+              END { exit !found }' "$work/headers"
+          }
 
-            call "$api"
-            expect "list assets" 200 application/json || return 1
-            total="$(jq 'length' "$work/body")" || return 1
-            if [ "$total" -lt 1 ]; then
-              echo "  FAIL: list assets - the list is empty"
-              return 1
-            fi
-            id="$(jq -r '.[0].id' "$work/body")" || return 1
-            name="$(jq -r '.[0].serverName' "$work/body")" || return 1
-            building="$(jq -r '.[0].buildingName' "$work/body")" || return 1
-            room="$(jq -r '.[0].serverRoom' "$work/body")" || return 1
-            scoped="$(jq --arg b "$building" --arg r "$room" \
-              '[.[] | select(.buildingName == $b and .serverRoom == $r)] | length' "$work/body")" || return 1
-
-            call "$api/$id"
-            expect "get asset by id" 200 application/json || return 1
-            # $id in the jq filter is a jq variable (set with --arg), not a shell one.
-            # shellcheck disable=SC2016
-            body_ok "get asset by id" '.id == $id' --arg id "$id" || return 1
-
-            # A missing route also answers 404, but without a JSON message.
-            call "$api/$unknown_id"
-            expect "get unknown asset" 404 application/json || return 1
-            body_ok "get unknown asset" '.message | type == "string"' || return 1
-
-            call "$api/export"
-            expect "export everything as CSV" 200 text/csv || return 1
-            header="$(sed -n '1{s/\r$//;p;q;}' "$work/body")"
-            if [ "$header" != "Server Name,Operating System,Missing Patches,Security Status" ]; then
-              echo "  FAIL: export everything as CSV - unexpected header row '$header'"
-              return 1
-            fi
-            rows=$(( $(wc -l < "$work/body") - 1 ))
-            if [ "$rows" -ne "$total" ]; then
-              echo "  FAIL: export everything as CSV - $rows rows for $total assets"
-              return 1
-            fi
-
-            call "$api/export" --get --data-urlencode "building=$building" --data-urlencode "room=$room"
-            expect "export CSV scoped to $building / $room" 200 text/csv || return 1
-            rows=$(( $(wc -l < "$work/body") - 1 ))
-            if [ "$rows" -ne "$scoped" ]; then
-              echo "  FAIL: export scoped CSV - $rows rows, expected $scoped"
-              return 1
-            fi
-
-            call "$api/$id/export/text"
-            expect "export text report" 200 text/plain || return 1
-            if ! grep -qiF "CLOUDGUARD TEXT REPORT: $name" "$work/body"; then
-              echo "  FAIL: export text report - report for $name not found in the body"
-              return 1
-            fi
-
-            call "$api/$unknown_id/export/text"
-            expect "export text report for unknown asset" 404 application/json || return 1
-            body_ok "export text report for unknown asset" '.message | type == "string"' || return 1
-
-            call "$api/security/audit-trail" --header "Origin: $SWA_ORIGIN"
-            expect "read audit trail" 200 application/json || return 1
-            body_ok "read audit trail" 'type == "array"' || return 1
+          # refused <what> <url> [curl options...]: a protected route has to answer 401 with a
+          # JSON message, and the browser has to be allowed to read that answer.
+          refused() {
+            local what="$1" url="$2"
+            shift 2
+            call "$url" --header "Origin: $SWA_ORIGIN" "$@"
+            expect "$what is refused without a valid token" 401 application/json || return 1
+            body_ok "$what" '.message | type == "string"' || return 1
             if ! allows_origin; then
-              echo "  FAIL: CORS - responses do not allow the origin $SWA_ORIGIN"
+              echo "  FAIL: $what - the 401 does not allow the origin $SWA_ORIGIN, so browsers could not read it"
               return 1
             fi
-            echo "  ok: CORS allows $SWA_ORIGIN"
+          }
 
-            # The remediate button sends a POST with custom headers, so browsers ask first.
-            call "$api/$id/remediate" --request OPTIONS \
+          check_api() {
+            # Every route sits behind the lock, with no token and with a token that is not valid.
+            refused "list assets" "$api" || return 1
+            refused "list assets (bad token)" "$api" --header "Authorization: Bearer not-a-real-token" || return 1
+            refused "get asset by id" "$api/$unknown_id" || return 1
+            refused "export CSV" "$api/export" || return 1
+            refused "export text report" "$api/$unknown_id/export/text" || return 1
+            refused "read audit trail" "$api/security/audit-trail" || return 1
+
+            # Login: configured (not 503), and a wrong password is turned away.
+            call "$base/login" --request POST \
+              --header "Origin: $SWA_ORIGIN" \
+              --header "Content-Type: application/json" \
+              --data '{"password":"not-the-password"}'
+            expect "login with a wrong password" 401 application/json || return 1
+            body_ok "login with a wrong password" '.message | type == "string"' || return 1
+            if ! allows_origin; then
+              echo "  FAIL: login - the response does not allow the origin $SWA_ORIGIN"
+              return 1
+            fi
+
+            # Browsers ask before the login POST (JSON body) ...
+            call "$base/login" --request OPTIONS \
               --header "Origin: $SWA_ORIGIN" \
               --header "Access-Control-Request-Method: POST" \
-              --header "Access-Control-Request-Headers: content-type,x-cloudguard-user,x-cloudguard-role"
+              --header "Access-Control-Request-Headers: content-type"
+            expect "CORS preflight for login" 204 "" || return 1
+            if ! allows_origin; then
+              echo "  FAIL: CORS preflight for login - the origin $SWA_ORIGIN is not allowed"
+              return 1
+            fi
+
+            # ... and before the remediate POST, which now also carries the Authorization header.
+            call "$api/$unknown_id/remediate" --request OPTIONS \
+              --header "Origin: $SWA_ORIGIN" \
+              --header "Access-Control-Request-Method: POST" \
+              --header "Access-Control-Request-Headers: content-type,authorization,x-cloudguard-user,x-cloudguard-role"
             expect "CORS preflight for remediate" 204 "" || return 1
             if ! allows_origin; then
-              echo "  FAIL: CORS preflight - the origin $SWA_ORIGIN is not allowed"
+              echo "  FAIL: CORS preflight for remediate - the origin $SWA_ORIGIN is not allowed"
+              return 1
+            fi
+            if ! allows_header authorization; then
+              echo "  FAIL: CORS preflight for remediate - the Authorization header is not allowed"
               return 1
             fi
           }
@@ -446,12 +475,14 @@ jobs:
         working-directory: ${{ env.CLIENT_DIR }}
         run: npm ci
 
-      # Vite bakes VITE_API_BASE_URL into the bundle; without it the app would call
-      # http://localhost:5003 from visitors' browsers.
+      # Vite bakes VITE_API_BASE_URL (and VITE_REQUIRE_LOGIN) into the bundle; without the
+      # first the app would call http://localhost:5003 from visitors' browsers.
       - name: Build client
         working-directory: ${{ env.CLIENT_DIR }}
         env:
           VITE_API_BASE_URL: https://${{ env.FUNCTION_APP_NAME }}.azurewebsites.net
+          # Shows the password lock screen first; local development leaves this unset.
+          VITE_REQUIRE_LOGIN: "true"
         run: npm run build
 
       - name: Verify build output

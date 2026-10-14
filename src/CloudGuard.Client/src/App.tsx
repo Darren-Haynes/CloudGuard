@@ -7,8 +7,8 @@ import { SidebarNav } from './components/SidebarNav';
 import { ServerDetail } from './components/ServerDetail';
 import { AuditLedger } from './components/AuditLedger';
 import { ClusterAnalytics } from './components/ClusterAnalytics';
-import { fetchServerAssets } from './services/api';
-import { ASSET_API_URL, ASSET_POLL_INTERVAL_MS, ERROR_RETRY_INTERVAL_MS } from './config';
+import { fetchServerAssets, downloadAuditCsv } from './services/api';
+import { ASSET_POLL_INTERVAL_MS, ERROR_RETRY_INTERVAL_MS } from './config';
 import useDebounce from './hooks/useDebounce';
 import usePolling from './hooks/usePolling';
 
@@ -16,6 +16,7 @@ export const App: React.FC = () => {
   const [assets, setAssets] = useState<ServerAsset[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // Controlled Filter Input States
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -157,14 +158,13 @@ export const App: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => {
-                    const baseUrl = `${ASSET_API_URL}/export`;
-                    const params = new URLSearchParams();
-                    if (selectedBuilding) params.append('building', selectedBuilding);
-                    if (selectedRoom) params.append('room', selectedRoom);
-
-                    const downloadUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
-                    window.location.href = downloadUrl;
+                  onClick={async () => {
+                    setDownloadError(null);
+                    try {
+                      await downloadAuditCsv(selectedBuilding, selectedRoom);
+                    } catch (err) {
+                      setDownloadError(err instanceof Error ? err.message : 'The audit report could not be downloaded.');
+                    }
                   }}
                   style={{
                     display: 'flex',
@@ -186,6 +186,12 @@ export const App: React.FC = () => {
                 </button>
               </div>
             </header>
+          )}
+
+          {currentView === 'fleet' && activeServerId === null && downloadError !== null && (
+            <div role="alert" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', backgroundColor: '#2d1a1a', border: '1px solid #7f1d1d', borderRadius: '0.375rem', color: '#f87171', fontSize: '0.9rem' }}>
+              {downloadError}
+            </div>
           )}
 
           <main>

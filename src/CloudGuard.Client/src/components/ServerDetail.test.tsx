@@ -1,13 +1,14 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ServerDetail } from './ServerDetail';
-import { fetchServerAssetById, remediateServerPatches } from '../services/api';
+import { fetchServerAssetById, remediateServerPatches, downloadAssetTextReport } from '../services/api';
 import type { ServerAsset } from '../types';
 
 // Mock our API module layer cleanly
 vi.mock('../services/api', () => ({
   fetchServerAssetById: vi.fn(),
   remediateServerPatches: vi.fn(),
+  downloadAssetTextReport: vi.fn(),
 }));
 
 describe('ServerDetail Component Suite', () => {
@@ -121,11 +122,7 @@ describe('ServerDetail Component Suite', () => {
     const printSpy = vi.fn();
     vi.stubGlobal('print', printSpy);
 
-    // Stub window.location.href assignment so navigation doesn't error out in jsdom
-    const originalLocation = window.location;
-    // @ts-expect-error -- intentionally deleting to allow a mock replacement
-    delete window.location;
-    (window as unknown as { location: Location }).location = { ...originalLocation, href: '' } as Location;
+    vi.mocked(downloadAssetTextReport).mockResolvedValue(undefined);
 
     render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
 
@@ -146,17 +143,53 @@ describe('ServerDetail Component Suite', () => {
     expect(downloadTextOption).toBeInTheDocument();
     expect(printPdfOption).toBeInTheDocument();
 
-    // Trigger the plain text export handler and confirm the streaming endpoint URL is hit
+    // Trigger the plain text export handler; the download goes through the authenticated API
+    // helper (a bare navigation could not carry the access token)
     fireEvent.click(downloadTextOption);
-    expect(window.location.href).toBe('http://localhost:5003/api/asset/deep-guid-001/export/text');
+    expect(downloadAssetTextReport).toHaveBeenCalledWith('deep-guid-001', 'building1-rm01-001');
+    expect(screen.queryByText('📄 Download Plain Text (.txt)')).not.toBeInTheDocument();
 
     // Re-open the dropdown and trigger the native print engine handler
     fireEvent.click(exportButton);
     fireEvent.click(screen.getByText('🖨️ Print Secure PDF (.pdf)'));
     expect(printSpy).toHaveBeenCalledTimes(1);
+  });
 
-    // Restore the native window.location object to avoid leaking state into other test files
-    (window as unknown as { location: Location }).location = originalLocation;
+  it('shows a readable error, and keeps the page, when the plain text download fails', async () => {
+    vi.mocked(fetchServerAssetById).mockResolvedValue(mockSingleAsset);
+    vi.mocked(downloadAssetTextReport).mockRejectedValue(new Error('The server report could not be downloaded. Please try again.'));
+
+    render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
+    await waitFor(() => {
+      expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle('Export Server Report'));
+    fireEvent.click(screen.getByText('📄 Download Plain Text (.txt)'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server report could not be downloaded');
+    expect(screen.getByText('🖥️ building1-rm01-001')).toBeInTheDocument();
+
+    // Trying again clears the old message once the download works.
+    vi.mocked(downloadAssetTextReport).mockResolvedValue(undefined);
+    fireEvent.click(screen.getByTitle('Export Server Report'));
+    fireEvent.click(screen.getByText('📄 Download Plain Text (.txt)'));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
+  it('uses a generic message when the download fails with something that is not an Error', async () => {
+    vi.mocked(fetchServerAssetById).mockResolvedValue(mockSingleAsset);
+    vi.mocked(downloadAssetTextReport).mockRejectedValue('boom');
+
+    render(<ServerDetail assetId="deep-guid-001" theme="dark" onToggleTheme={vi.fn()} onBack={mockOnBackSpy} />);
+    await waitFor(() => {
+      expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle('Export Server Report'));
+    fireEvent.click(screen.getByText('📄 Download Plain Text (.txt)'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server report could not be downloaded.');
   });
 
   it('executes the live patch remediation sequence and updates the state posture metrics cleanly', async () => {
