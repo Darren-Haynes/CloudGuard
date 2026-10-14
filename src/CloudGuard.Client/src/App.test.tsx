@@ -1,13 +1,21 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { App } from './App';
-import { fetchServerAssets, fetchSecurityAuditTrail } from './services/api';
+import { fetchServerAssets, fetchSecurityAuditTrail, fetchServerAssetById, remediateServerPatches } from './services/api';
+import { ASSET_POLL_INTERVAL_MS, ERROR_RETRY_INTERVAL_MS } from './config';
+import { resetTabVisibility, setTabVisibility } from './test/tabVisibility';
 import type { ServerAsset } from './types';
 
 vi.mock('./services/api', () => ({
   fetchServerAssets: vi.fn(),
   fetchSecurityAuditTrail: vi.fn(),
+  fetchServerAssetById: vi.fn(),
+  remediateServerPatches: vi.fn(),
 }));
+
+// For the tests that run on a fake clock: lets pending promises settle, or moves time forward.
+const flush = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 
 describe('App Root Component Integration', () => {
   const mockAssets: ServerAsset[] = [
@@ -72,6 +80,7 @@ describe('App Root Component Integration', () => {
   // 💡 Reset clock state explicitly after EVERY single test case to prevent resource leakage!
   afterEach(() => {
     vi.useRealTimers();
+    resetTabVisibility();
   });
 
   it('renders loading state initially, then resolves data telemetry cleanly', async () => {
@@ -194,26 +203,22 @@ describe('App Root Component Integration', () => {
     expect(screen.getByText('gsy-fin-prod-01')).toBeInTheDocument();
   });
 
-  it('clears active polling timers and updates mounting flags on component unmount', async () => {
+  it('stops refreshing the fleet once the app is unmounted', async () => {
+    // The old version of this test spied on clearInterval, which the app no longer uses (the
+    // spy was only ever satisfied by Testing Library's own timers). This checks the behaviour
+    // instead: nothing is fetched after unmount, however long the clock runs.
+    vi.useFakeTimers();
     vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
-    const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
 
     const { unmount } = render(<App />);
+    await flush();
+    expect(fetchServerAssets).toHaveBeenCalledTimes(1);
 
-    await waitFor(() => {
-      expect(screen.queryByText('Querying telemetry data...')).not.toBeInTheDocument();
-    });
+    unmount();
+    await advance(ASSET_POLL_INTERVAL_MS * 2);
 
-    vi.useFakeTimers();
-
-    act(() => {
-      unmount();
-    });
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    expect(clearIntervalSpy).toHaveBeenCalled();
-    clearIntervalSpy.mockRestore();
+    expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('gracefully handles audit ledger network failures and displays error boundary text layouts', async () => {
@@ -263,6 +268,150 @@ describe('App Root Component Integration', () => {
     // Verify that the server asset grid mounts cleanly back onto the screen layout
     await waitFor(() => {
       expect(screen.getByRole('table')).toBeInTheDocument();
+    });
+  });
+
+  // These run on a fake clock and reset every mock they use, so they do not depend on what
+  // the tests above left behind.
+  describe('refreshing the fleet', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.mocked(fetchServerAssets).mockReset();
+      vi.mocked(fetchServerAssetById).mockReset();
+      vi.mocked(remediateServerPatches).mockReset();
+      vi.mocked(fetchSecurityAuditTrail).mockReset();
+    });
+
+    it('fetches the fleet once on load, not every few seconds, and again after the refresh interval', async () => {
+      vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+
+      render(<App />);
+      await flush();
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+
+      // The page used to ask again every 5 seconds.
+      await advance(60 * 1000);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+
+      await advance(ASSET_POLL_INTERVAL_MS - 60 * 1000 - 1);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+
+      await advance(1);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops asking while the tab is hidden and catches up when it is shown again', async () => {
+      vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+
+      render(<App />);
+      await flush();
+
+      act(() => setTabVisibility('hidden'));
+      await advance(ASSET_POLL_INTERVAL_MS * 3);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+
+      act(() => setTabVisibility('visible'));
+      await flush();
+      expect(fetchServerAssets).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not ask again when the tab comes back while its data is still fresh', async () => {
+      vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+      const tenMinutes = 10 * 60 * 1000;
+
+      render(<App />);
+      await flush();
+
+      await advance(tenMinutes);
+      act(() => setTabVisibility('hidden'));
+      await advance(tenMinutes);
+      act(() => setTabVisibility('visible'));
+      await flush();
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+
+      // Twenty minutes of the interval are used up; the rest is still to wait.
+      await advance(ASSET_POLL_INTERVAL_MS - 2 * tenMinutes - 1);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+
+      await advance(1);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries a failed first load after the short retry delay instead of waiting a whole interval', async () => {
+      vi.mocked(fetchServerAssets)
+        .mockRejectedValueOnce(new Error('Network conflict or gateway timeout.'))
+        .mockResolvedValue(mockAssets);
+
+      render(<App />);
+      await flush();
+      expect(screen.getByText('Error loading telemetry:')).toBeInTheDocument();
+
+      await advance(ERROR_RETRY_INTERVAL_MS - 1);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Error loading telemetry:')).toBeInTheDocument();
+
+      await advance(1);
+      expect(fetchServerAssets).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText('Error loading telemetry:')).not.toBeInTheDocument();
+      expect(screen.getByText('gsy-fin-prod-01')).toBeInTheDocument();
+    });
+
+    it('keeps the error on screen while a retry is still in flight instead of flashing the dashboard', async () => {
+      let resolveRetry: (assets: ServerAsset[]) => void = () => {};
+      vi.mocked(fetchServerAssets)
+        .mockRejectedValueOnce(new Error('Network conflict or gateway timeout.'))
+        .mockImplementationOnce(
+          () => new Promise<ServerAsset[]>((resolve) => {
+            resolveRetry = resolve;
+          })
+        );
+
+      render(<App />);
+      await flush();
+      await advance(ERROR_RETRY_INTERVAL_MS);
+
+      expect(fetchServerAssets).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('Error loading telemetry:')).toBeInTheDocument();
+      expect(screen.queryByText('Total Servers')).not.toBeInTheDocument();
+
+      await act(async () => {
+        resolveRetry(mockAssets);
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(screen.queryByText('Error loading telemetry:')).not.toBeInTheDocument();
+      expect(screen.getByText('gsy-fin-prod-01')).toBeInTheDocument();
+    });
+
+    it('shows a remediation on the grid, the metric cards and the sidebar straight away, without fetching the fleet again', async () => {
+      const remediatedAsset: ServerAsset = { ...mockAssets[1], missingPatches: 0, securityStatus: 'Compliant' };
+      // The API keeps answering with the old fleet, so only the remediation itself can explain
+      // the change on screen.
+      vi.mocked(fetchServerAssets).mockResolvedValue(mockAssets);
+      vi.mocked(fetchServerAssetById).mockResolvedValue(mockAssets[1]);
+      vi.mocked(remediateServerPatches).mockResolvedValue(remediatedAsset);
+
+      render(<App />);
+      await flush();
+
+      // The metric card is the first element labelled "Missing Patches" (the table header is the second).
+      const missingPatchesValue = () => screen.getAllByText('Missing Patches')[0].nextElementSibling;
+      expect(missingPatchesValue()).toHaveTextContent('4');
+      expect(screen.getByTestId('sidebar-building-building1')).toHaveTextContent('🟡');
+
+      fireEvent.click(screen.getByText('gsy-hr-vm-02'));
+      await flush();
+      fireEvent.click(screen.getByText('⚡ Execute Active Patch Remediation'));
+      await flush();
+      expect(remediateServerPatches).toHaveBeenCalledWith('2');
+      fireEvent.click(screen.getByText('⬅️ Back to Master Overview'));
+
+      const row = screen.getByText('gsy-hr-vm-02').closest('tr')!;
+      expect(within(row).getByText('Compliant')).toBeInTheDocument();
+      expect(within(row).queryByText('Vulnerable')).not.toBeInTheDocument();
+      expect(missingPatchesValue()).toHaveTextContent('0');
+      expect(screen.getByTestId('sidebar-building-building1')).toHaveTextContent('🟢');
+      expect(fetchServerAssets).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -8,9 +8,12 @@ interface ServerDetailProps {
   theme: 'light' | 'dark';      // 👈 Add theme tracker prop
   onToggleTheme: () => void;    // 👈 Add toggle callback prop
   onBack: () => void;
+  // Called with the server's new state after a remediation succeeds, so the parent can update
+  // its own copy of the fleet without waiting for its next refresh.
+  onRemediated?: (asset: ServerAsset) => void;
 }
 
-export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onToggleTheme, onBack }) => {
+export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onToggleTheme, onBack, onRemediated }) => {
   const [asset, setAsset] = useState<ServerAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +61,7 @@ export const ServerDetail: React.FC<ServerDetailProps> = ({ assetId, theme, onTo
       setIsRemediating(true);
       const updatedAsset = await remediateServerPatches(assetId);
       setAsset(updatedAsset);
+      onRemediated?.(updatedAsset);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to execute active patch remediation sequence.');
     } finally {

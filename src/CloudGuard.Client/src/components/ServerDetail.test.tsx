@@ -224,4 +224,74 @@ describe('ServerDetail Component Suite', () => {
       expect(screen.getByText(/Remediation deployment connection timed out./i)).toBeInTheDocument();
     });
   });
+
+  it('reports the remediated server to the parent through onRemediated', async () => {
+    const mockRemediatedAsset: ServerAsset = {
+      ...mockSingleAsset,
+      missingPatches: 0,
+      securityStatus: 'Compliant',
+    };
+    const onRemediatedSpy = vi.fn();
+
+    vi.mocked(fetchServerAssetById).mockResolvedValue({
+      ...mockSingleAsset,
+      missingPatches: 5,
+      securityStatus: 'Vulnerable',
+    });
+    vi.mocked(remediateServerPatches).mockResolvedValue(mockRemediatedAsset);
+
+    render(
+      <ServerDetail
+        assetId="deep-guid-001"
+        theme="dark"
+        onToggleTheme={vi.fn()}
+        onBack={mockOnBackSpy}
+        onRemediated={onRemediatedSpy}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
+    });
+
+    expect(onRemediatedSpy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('⚡ Execute Active Patch Remediation'));
+
+    await waitFor(() => {
+      expect(onRemediatedSpy).toHaveBeenCalledTimes(1);
+    });
+    expect(onRemediatedSpy).toHaveBeenCalledWith(mockRemediatedAsset);
+  });
+
+  it('does not report a remediation to the parent when the remediation fails', async () => {
+    const onRemediatedSpy = vi.fn();
+
+    vi.mocked(fetchServerAssetById).mockResolvedValue({
+      ...mockSingleAsset,
+      missingPatches: 5,
+      securityStatus: 'Vulnerable',
+    });
+    vi.mocked(remediateServerPatches).mockRejectedValue(new Error('Remediation deployment connection timed out.'));
+
+    render(
+      <ServerDetail
+        assetId="deep-guid-001"
+        theme="dark"
+        onToggleTheme={vi.fn()}
+        onBack={mockOnBackSpy}
+        onRemediated={onRemediatedSpy}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText('Querying deep telemetry matrix...')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText(/Execute Active Patch Remediation/i));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Remediation deployment connection timed out./i)).toBeInTheDocument();
+    });
+    expect(onRemediatedSpy).not.toHaveBeenCalled();
+  });
 });
