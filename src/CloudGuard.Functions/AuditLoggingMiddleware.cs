@@ -40,7 +40,17 @@ public class AuditLoggingMiddleware(IAuditLogService auditLogService) : IFunctio
             throw;
         }
 
-        Record(httpContext, context.GetInvocationResult().Value as IActionResult, null);
+        var result = context.GetInvocationResult().Value as IActionResult;
+
+        // Anyone can call login without a token, so recording every failed attempt would let a
+        // password-guessing script fill the ledger and push out the entries that matter.
+        // Only successful logins are recorded.
+        if (context.FunctionDefinition.Name == LoginFunction.FunctionName && result is not OkObjectResult)
+        {
+            return;
+        }
+
+        Record(httpContext, result, null);
     }
 
     private void Record(HttpContext httpContext, IActionResult? result, Exception? exception)

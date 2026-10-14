@@ -6,6 +6,7 @@ using Azure.Storage.Blobs;
 using System;
 using System.IO;
 using CloudGuard.Api.Data;
+using CloudGuard.Api.Security;
 using CloudGuard.Api.Services;
 using CloudGuard.Functions;
 
@@ -13,6 +14,10 @@ var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(builder =>
     {
         builder.Services.AddControllers();
+
+        // The password lock. It has to come before the audit middleware so that requests it
+        // rejects are never written to the audit ledger.
+        builder.UseMiddleware<AccessControlMiddleware>();
 
         // HTTP-triggered functions bypass the MVC pipeline, so the API's AuditLoggingFilter
         // never runs in this app. This middleware writes the audit-ledger entries instead.
@@ -53,6 +58,10 @@ var host = new HostBuilder()
 
         services.AddScoped<IAssetService, AssetService>();
         services.AddSingleton<IAuditLogService, AuditLogService>();
+
+        // The password and token-signing key come from app settings (see AccessControlOptions).
+        // Without them the API refuses every request except login, which answers 503.
+        services.AddSingleton(_ => new AccessTokenService(AccessControlOptions.FromEnvironment()));
     })
     .Build();
 
