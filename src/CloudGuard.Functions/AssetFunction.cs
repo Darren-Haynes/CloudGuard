@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CloudGuard.Api.Controllers;
 using CloudGuard.Api.Models;
 using CloudGuard.Api.Services;
 using Microsoft.AspNetCore.Http;
@@ -12,12 +13,44 @@ namespace CloudGuard.Functions;
 
 public class AssetFunction(IAssetService assetService, IAuditLogService auditLogService)
 {
+    // The lookup and export routes delegate to the API controller, so a response from
+    // the Functions app is identical to one from the local API (same CSV layout, report
+    // text, file names and 404 bodies). The controller is stateless, so a fresh instance
+    // per call is fine.
+    private AssetController Controller => new(assetService, auditLogService);
+
     [Function("GetAssetsFunction")]
     public async Task<IActionResult> GetAssets(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "asset")] HttpRequest req)
     {
         var assets = await assetService.GetAllAssetsAsync();
         return new OkObjectResult(assets);
+    }
+
+    [Function("GetAssetByIdFunction")]
+    public async Task<IActionResult> GetAssetById(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "asset/{id:guid}")] HttpRequest req,
+        Guid id)
+    {
+        var result = await Controller.GetAssetById(id);
+
+        // ActionResult<T> carries either an explicit result (such as the 404) or a bare value.
+        return result.Result ?? new OkObjectResult(result.Value);
+    }
+
+    [Function("ExportAuditCsvFunction")]
+    public Task<IActionResult> ExportAuditCsv(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "asset/export")] HttpRequest req)
+    {
+        return Controller.ExportAuditCsv(QueryValue(req, "building"), QueryValue(req, "room"));
+    }
+
+    [Function("ExportAssetTextReportFunction")]
+    public Task<IActionResult> ExportAssetTextReport(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "asset/{id:guid}/export/text")] HttpRequest req,
+        Guid id)
+    {
+        return Controller.ExportAssetTextReport(id);
     }
 
     [Function("RemediateAssetFunction")]
@@ -47,5 +80,12 @@ public class AssetFunction(IAssetService assetService, IAuditLogService auditLog
     {
         var trail = auditLogService.GetAuditLedgerTrail();
         return new OkObjectResult(trail);
+    }
+
+    // An absent or empty query value means "no scope", as with the API's model binding.
+    private static string? QueryValue(HttpRequest req, string key)
+    {
+        var value = req.Query[key].FirstOrDefault();
+        return string.IsNullOrEmpty(value) ? null : value;
     }
 }
