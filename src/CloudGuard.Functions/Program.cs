@@ -7,15 +7,16 @@ using System;
 using System.IO;
 using CloudGuard.Api.Data;
 using CloudGuard.Api.Services;
-using CloudGuard.Api.Filters;
+using CloudGuard.Functions;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(builder =>
     {
-        builder.Services.AddControllers(options =>
-        {
-            options.Filters.Add<AuditLoggingFilter>();
-        });
+        builder.Services.AddControllers();
+
+        // HTTP-triggered functions bypass the MVC pipeline, so the API's AuditLoggingFilter
+        // never runs in this app. This middleware writes the audit-ledger entries instead.
+        builder.UseMiddleware<AuditLoggingMiddleware>();
     })
     .ConfigureServices(services =>
     {
