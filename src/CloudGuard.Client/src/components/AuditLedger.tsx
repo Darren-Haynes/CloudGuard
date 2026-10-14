@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { AuditLogEntry } from '../types';
 import { fetchSecurityAuditTrail } from '../services/api';
-
-const POLL_INTERVAL_MS = 5000;
+import { AUDIT_POLL_INTERVAL_MS } from '../config';
+import usePolling from '../hooks/usePolling';
 
 const formatUtcTimestamp = (value: string): string => {
   const date = new Date(value);
@@ -35,32 +35,23 @@ export const AuditLedger: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadTrail(isInitialLoad: boolean) {
-      try {
-        const data = await fetchSecurityAuditTrail();
-        if (!isMounted) return;
-        setEntries(data);
-        setError(null);
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to query immutable security audit ledger records.');
-        }
-      } finally {
-        if (isMounted && isInitialLoad) setIsLoading(false);
-      }
+  // Loads the trail when the ledger opens and refreshes it while the tab is visible. Entries
+  // already on screen stay put if a refresh fails; the error shows above them until the next
+  // refresh works.
+  const loadTrail = async (): Promise<boolean> => {
+    try {
+      setEntries(await fetchSecurityAuditTrail());
+      setError(null);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to query immutable security audit ledger records.');
+      return false;
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    loadTrail(true);
-    const intervalId = setInterval(() => { loadTrail(false); }, POLL_INTERVAL_MS);
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, []);
+  usePolling(loadTrail, AUDIT_POLL_INTERVAL_MS);
 
   // Newest events first
   const sortedEntries = [...entries].sort(
@@ -74,7 +65,7 @@ export const AuditLedger: React.FC = () => {
           🛡️ System Audit Ledger
         </h2>
         <span style={{ fontSize: '0.8rem', color: 'var(--text)' }}>
-          {sortedEntries.length} {sortedEntries.length === 1 ? 'event' : 'events'} · live
+          {sortedEntries.length} {sortedEntries.length === 1 ? 'event' : 'events'} · refreshes automatically
         </span>
       </div>
 

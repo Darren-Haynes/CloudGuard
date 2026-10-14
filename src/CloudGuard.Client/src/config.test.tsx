@@ -47,3 +47,28 @@ describe('API location config', () => {
     expect(ASSET_API_URL).toBe('https://api.cloudguard.test/api/asset');
   });
 });
+
+// Every refresh is a billable call to the Function App, so the cadence is a deliberate choice
+// that should not change by accident.
+describe('polling cadence', () => {
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+
+  it('refreshes the fleet every 2 hours', async () => {
+    const { ASSET_POLL_INTERVAL_MS } = await loadConfig();
+
+    expect(ASSET_POLL_INTERVAL_MS).toBe(2 * HOUR);
+  });
+
+  it('refreshes an open audit ledger every minute', async () => {
+    const { AUDIT_POLL_INTERVAL_MS } = await loadConfig();
+
+    expect(AUDIT_POLL_INTERVAL_MS).toBe(MINUTE);
+  });
+
+  it('retries a failed load after 30 seconds', async () => {
+    const { ERROR_RETRY_INTERVAL_MS } = await loadConfig();
+
+    expect(ERROR_RETRY_INTERVAL_MS).toBe(30 * 1000);
+  });
+});

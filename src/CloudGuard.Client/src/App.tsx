@@ -8,8 +8,9 @@ import { ServerDetail } from './components/ServerDetail';
 import { AuditLedger } from './components/AuditLedger';
 import { ClusterAnalytics } from './components/ClusterAnalytics';
 import { fetchServerAssets } from './services/api';
-import { ASSET_API_URL } from './config';
+import { ASSET_API_URL, ASSET_POLL_INTERVAL_MS, ERROR_RETRY_INTERVAL_MS } from './config';
 import useDebounce from './hooks/useDebounce';
+import usePolling from './hooks/usePolling';
 
 export const App: React.FC = () => {
   const [assets, setAssets] = useState<ServerAsset[]>([]);
@@ -54,32 +55,29 @@ export const App: React.FC = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadAssets(isInitialLoad: boolean) {
-      try {
-        if (isInitialLoad) setIsLoading(true);
-        setError(null);
-        const data = await fetchServerAssets();
-        if (isMounted) setAssets(data);
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to connect to security telemetry service.');
-        }
-      } finally {
-        if (isMounted && isInitialLoad) setIsLoading(false);
-      }
+  // Loads the fleet once on mount and refreshes it rarely after that (see config.ts). Polling
+  // pauses while the tab is hidden, and retries soon after a failed load. The previous
+  // error stays on screen until a load succeeds, so a retry never flashes the dashboard.
+  const loadAssets = async (): Promise<boolean> => {
+    try {
+      setAssets(await fetchServerAssets());
+      setError(null);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect to security telemetry service.');
+      return false;
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    loadAssets(true);
-    const intervalId = setInterval(() => { loadAssets(false); }, 5000);
+  usePolling(loadAssets, ASSET_POLL_INTERVAL_MS, ERROR_RETRY_INTERVAL_MS);
 
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, []);
+  // The deep-dive view reports a successful remediation so the grid, the metric cards and the
+  // sidebar lights change straight away instead of waiting for the next refresh.
+  const handleRemediated = (updatedAsset: ServerAsset) => {
+    setAssets((current) => current.map((asset) => (asset.id === updatedAsset.id ? updatedAsset : asset)));
+  };
 
   const handleSelectScope = (building: string | null, room: string | null) => {
     setSelectedBuilding(building);
@@ -207,6 +205,7 @@ export const App: React.FC = () => {
                 theme={theme}
                 onToggleTheme={toggleTheme}
                 onBack={() => setActiveServerId(null)}
+                onRemediated={handleRemediated}
               />
             ) : (
               <>
