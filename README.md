@@ -8,9 +8,9 @@ The frontend is React and TypeScript. The backend is .NET 10, deployed as an Azu
 
 ## Demo
 
-<!-- TODO: replace this block with the 3-4 minute demo video (YouTube/Loom link or an uploaded GIF/MP4). -->
+[![CloudGuard demo video](https://img.youtube.com/vi/2zyNzYWhsFg/hqdefault.jpg)](https://youtu.be/2zyNzYWhsFg)
 
-**Demo video coming soon.**
+**[Watch the demo video on YouTube](https://youtu.be/2zyNzYWhsFg)**
 
 The live site sits behind a shared password so that bots can't run up the Azure bill. If you're reviewing this project and want access, ask me and I'll send you the link and password directly.
 
