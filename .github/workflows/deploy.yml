@@ -5,8 +5,8 @@
 #   - It removes the WEBSITE_RUN_FROM_PACKAGE app setting when present, because Flex
 #     Consumption refuses to deploy while it exists (step "Remove the app setting Flex
 #     Consumption rejects").
-#   - It adds the Static Web App's address to the CORS list so browsers accept the API's
-#     responses (step "Allow the Static Web App origin (CORS)").
+#   - It adds the Static Web App's addresses (default and custom domains) to the CORS list
+#     so browsers accept the API's responses (step "Allow the Static Web App origins (CORS)").
 #   Resource group   rg-cloudguard-prod
 #   Function app     func-cloudguard-telemetry-prd  (.NET 10 isolated, Flex Consumption)
 #   Static Web App   swa-cloudguard-prod-ui
@@ -262,13 +262,17 @@ jobs:
             --name "$FUNCTION_APP_NAME" \
             --src "$RUNNER_TEMP/functions.zip"
 
-      # The React app is served from the Static Web App's own domain and calls this
-      # Function App directly, so a browser only accepts the responses when that exact
-      # origin is in the Function App's CORS list. Azure ignores a "*" entry as soon as
-      # other origins are listed, so it has to be there by name. This only ever adds the one
-      # origin (nothing is removed) and does nothing when it is already listed, or when the
-      # list is only "*" (everything is already allowed, and adding a name would switch that off).
-      - name: Allow the Static Web App origin (CORS)
+      # The React app is served from the Static Web App's own domain, or from a custom domain
+      # attached to it, and calls this Function App directly. A browser only accepts the
+      # responses when that exact origin is in the Function App's CORS list. Azure ignores a "*"
+      # entry as soon as other origins are listed, so each origin has to be there by name.
+      #
+      # The origins are read from the Static Web App itself: its default hostname plus every
+      # custom domain whose status is Ready, so a domain attached in the portal is picked up by
+      # the next deploy with no edit to this file. This only ever adds origins (nothing is
+      # removed), skips the ones already listed, and does nothing when the list is only "*"
+      # (everything is already allowed, and adding a name would switch that off).
+      - name: Allow the Static Web App origins (CORS)
         run: |
           set -euo pipefail
           host="$(az staticwebapp show \
@@ -281,20 +285,48 @@ jobs:
             exit 1
           fi
           origin="https://$host"
+          wanted=("$origin")
+
+          # A failed lookup must not block a deploy: the default hostname is still handled.
+          if ! custom="$(az staticwebapp hostname list \
+            --name "$STATIC_WEB_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[?status=='Ready'].domainName" \
+            --output tsv)"; then
+            echo "::warning::Could not list the custom domains of $STATIC_WEB_APP_NAME; only the default hostname is checked."
+            custom=""
+          fi
+          for domain in $custom; do
+            if [[ "$domain" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; then
+              wanted+=("https://$domain")
+            else
+              echo "::warning::Ignoring custom domain with an unexpected name."
+            fi
+          done
 
           cors="$(az functionapp cors show \
             --name "$FUNCTION_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --output json)"
-          if jq -e --arg origin "$origin" '(.allowedOrigins // []) | any(.[]; . == $origin) or . == ["*"]' <<< "$cors" > /dev/null; then
-            echo "CORS on $FUNCTION_APP_NAME already allows $origin"
+          if jq -e '(.allowedOrigins // []) == ["*"]' <<< "$cors" > /dev/null; then
+            echo "CORS on $FUNCTION_APP_NAME allows every origin already"
           else
-            az functionapp cors add \
-              --name "$FUNCTION_APP_NAME" \
-              --resource-group "$RESOURCE_GROUP" \
-              --allowed-origins "$origin" \
-              --output none
-            echo "Added $origin to the CORS allowed origins of $FUNCTION_APP_NAME"
+            missing=()
+            for o in "${wanted[@]}"; do
+              if jq -e --arg origin "$o" '(.allowedOrigins // []) | any(.[]; . == $origin)' <<< "$cors" > /dev/null; then
+                echo "CORS on $FUNCTION_APP_NAME already allows $o"
+              else
+                missing+=("$o")
+              fi
+            done
+            if [ "${#missing[@]}" -gt 0 ]; then
+              az functionapp cors add \
+                --name "$FUNCTION_APP_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --allowed-origins "${missing[@]}" \
+                --output none
+              echo "Added ${#missing[@]} origin(s) to the CORS allowed origins of $FUNCTION_APP_NAME"
+            fi
           fi
 
           echo "SWA_ORIGIN=$origin" >> "$GITHUB_ENV"
