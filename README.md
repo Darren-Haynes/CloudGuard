@@ -12,7 +12,7 @@ The frontend is React and TypeScript. The backend is .NET 10, deployed as an Azu
 
 **[Watch the demo video on YouTube](https://youtu.be/2zyNzYWhsFg)**
 
-The live site sits behind a shared password so that bots can't run up the Azure bill. If you're reviewing this project and want access, ask me and I'll send you the link and password directly.
+**Live site: [www.cloudguard.fyi](https://www.cloudguard.fyi)**. It sits behind a shared password so that bots can't run up the Azure bill. **Password available on request.** Ask me and I'll send it to you directly.
 
 <!-- TODO: add 2-3 screenshots (fleet view, server deep-dive, analytics) under docs/images/ and link them here. -->
 
